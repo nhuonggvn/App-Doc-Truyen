@@ -1,5 +1,5 @@
 // lib/viewmodels/theme_provider.dart
-// Provider quản lý chế độ giao diện Tối/Sáng
+// Provider quản lý chế độ giao diện Tối/Sáng - Tối ưu hiệu năng
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,12 +9,14 @@ class ThemeProvider with ChangeNotifier {
 
   bool _isDarkMode = false;
   SharedPreferences? _prefs;
+  bool _isInitialized = false;
 
   // Getter
   bool get isDarkMode => _isDarkMode;
+  bool get isInitialized => _isInitialized;
 
-  // Lấy ThemeData hiện tại
-  ThemeData get themeData => _isDarkMode ? _darkTheme : _lightTheme;
+  // Trả về ThemeMode thay vì ThemeData để tối ưu
+  ThemeMode get themeMode => _isDarkMode ? ThemeMode.dark : ThemeMode.light;
 
   ThemeProvider() {
     _loadTheme();
@@ -24,25 +26,28 @@ class ThemeProvider with ChangeNotifier {
   Future<void> _loadTheme() async {
     _prefs = await SharedPreferences.getInstance();
     _isDarkMode = _prefs?.getBool(_themeKey) ?? false;
+    _isInitialized = true;
     notifyListeners();
   }
 
-  // Chuyển đổi theme
-  Future<void> toggleTheme() async {
+  // Chuyển đổi theme - không cần await để UI mượt hơn
+  void toggleTheme() {
     _isDarkMode = !_isDarkMode;
-    await _prefs?.setBool(_themeKey, _isDarkMode);
     notifyListeners();
+    // Lưu async không chờ
+    _prefs?.setBool(_themeKey, _isDarkMode);
   }
 
   // Đặt theme cụ thể
-  Future<void> setDarkMode(bool value) async {
+  void setDarkMode(bool value) {
+    if (_isDarkMode == value) return; // Không làm gì nếu không đổi
     _isDarkMode = value;
-    await _prefs?.setBool(_themeKey, _isDarkMode);
     notifyListeners();
+    _prefs?.setBool(_themeKey, _isDarkMode);
   }
 
-  // Light Theme - Material Design 3
-  static final ThemeData _lightTheme = ThemeData(
+  // Light Theme - định nghĩa static để không tạo lại mỗi lần
+  static final ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
     colorScheme: ColorScheme.fromSeed(
@@ -70,8 +75,8 @@ class ThemeProvider with ChangeNotifier {
     ),
   );
 
-  // Dark Theme - Material Design 3
-  static final ThemeData _darkTheme = ThemeData(
+  // Dark Theme - định nghĩa static để không tạo lại mỗi lần
+  static final ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
     colorScheme: ColorScheme.fromSeed(

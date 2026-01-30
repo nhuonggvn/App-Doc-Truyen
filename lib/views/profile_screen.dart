@@ -1,6 +1,7 @@
 // lib/views/profile_screen.dart
 // Màn hình hồ sơ cá nhân
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/auth_provider.dart';
@@ -200,33 +201,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ...storyProvider.favorites.map(
               (story) => Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: ListTile(
-                  leading: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.menu_book,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  title: Text(
-                    story.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    story.author,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.favorite, color: Colors.red),
-                    onPressed: () => storyProvider.toggleFavorite(story),
-                  ),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
                   onTap: () {
                     Navigator.push(
                       context,
@@ -235,6 +211,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     );
                   },
+                  child: SizedBox(
+                    height: 80,
+                    child: Row(
+                      children: [
+                        // Ảnh bìa - vuông đều
+                        SizedBox(
+                          width: 80,
+                          height: 80,
+                          child: _buildCoverImage(context, story.coverImage),
+                        ),
+                        // Thông tin
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  story.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 4),
+                                FutureBuilder<int>(
+                                  future: storyProvider.getChapterCount(
+                                    story.id!,
+                                  ),
+                                  builder: (context, snapshot) {
+                                    final count = snapshot.data ?? 0;
+                                    return Row(
+                                      children: [
+                                        Icon(
+                                          Icons.menu_book,
+                                          size: 12,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '$count chương',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.primary,
+                                              ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Nút yêu thích
+                        IconButton(
+                          icon: const Icon(Icons.favorite, color: Colors.red),
+                          onPressed: () => storyProvider.toggleFavorite(story),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -257,6 +302,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           const SizedBox(height: 32),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCoverImage(BuildContext context, String? coverImage) {
+    if (coverImage != null && coverImage.isNotEmpty) {
+      final file = File(coverImage);
+      if (file.existsSync()) {
+        return Image.file(file, fit: BoxFit.cover);
+      }
+    }
+
+    // Placeholder
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Theme.of(context).colorScheme.primary,
+            Theme.of(context).colorScheme.tertiary,
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.menu_book,
+          size: 32,
+          color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.7),
+        ),
       ),
     );
   }

@@ -44,7 +44,11 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             title: 'Ứng Dụng Đọc Truyện',
             debugShowCheckedModeBanner: false,
-            theme: themeProvider.themeData,
+            // Sử dụng theme và darkTheme cố định, chỉ đổi themeMode
+            theme: ThemeProvider.lightTheme,
+            darkTheme: ThemeProvider.darkTheme,
+            themeMode:
+                themeProvider.themeMode, // Chỉ đổi mode, không rebuild theme
             home: Consumer<AuthProvider>(
               builder: (context, authProvider, child) {
                 // Điều hướng dựa trên trạng thái đăng nhập

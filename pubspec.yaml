@@ -30,11 +30,22 @@ dependencies:
   # Utilities
   intl: ^0.20.2
   flutter_dotenv: ^5.2.1
+  
+  # Image handling
+  image_picker: ^1.1.2
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: "^0.13.1" # icon
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/icon.png" # Đường dẫn tới ảnh
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true

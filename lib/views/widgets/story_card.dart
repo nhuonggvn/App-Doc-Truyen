@@ -1,11 +1,13 @@
 // lib/views/widgets/story_card.dart
-// Widget thẻ truyện tái sử dụng
+// Card widget hiển thị truyện với ảnh bìa
 
+import 'dart:io';
 import 'package:flutter/material.dart';
-import '../../models/story.dart';
+import '../../../models/story.dart';
 
 class StoryCard extends StatelessWidget {
   final Story story;
+  final int chapterCount;
   final VoidCallback? onTap;
   final VoidCallback? onFavoriteToggle;
   final VoidCallback? onEdit;
@@ -15,6 +17,7 @@ class StoryCard extends StatelessWidget {
   const StoryCard({
     super.key,
     required this.story,
+    this.chapterCount = 0,
     this.onTap,
     this.onFavoriteToggle,
     this.onEdit,
@@ -25,145 +28,269 @@ class StoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      clipBehavior: Clip.antiAlias,
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        child: SizedBox(
+          height: 135,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header: Title và nút yêu thích
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Icon sách
-                  Container(
-                    width: 60,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.menu_book_rounded,
-                      size: 32,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Thông tin truyện
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          story.title,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+              // Ảnh bìa
+              SizedBox(width: 100, child: _buildCoverImage(context)),
+
+              // Thông tin
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Tiêu đề
+                      Text(
+                        story.title,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+
+                      // Tác giả
+                      Text(
+
+                        story.author,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.person_outline,
-                              size: 16,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Thể loại
+                      if (story.genres.isNotEmpty)
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: story.genres.take(3).map((genre) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.secondaryContainer,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
                               child: Text(
-                                story.author,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                                    ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                genre,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSecondaryContainer,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      const SizedBox(height: 8),
+
+                      // Thông tin thêm
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.visibility,
+                            size: 14,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _formatNumber(story.viewsCount),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(
+                            Icons.menu_book,
+                            size: 14,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$chapterCount chương',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(width: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getStatusColor(story.status),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              story.status,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.white,
                               ),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          story.description,
-                          style: Theme.of(context).textTheme.bodySmall,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  // Nút yêu thích
-                  if (onFavoriteToggle != null)
-                    IconButton(
-                      onPressed: onFavoriteToggle,
+                ),
+              ),
+
+              // Actions - căn giữa theo chiều dọc
+              if (showActions)
+                SizedBox(
+                  width: 40,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          story.isFavorite
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          color: story.isFavorite ? Colors.red : null,
+                          size: 20,
+                        ),
+                        onPressed: onFavoriteToggle,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minHeight: 36,
+                          minWidth: 36,
+                        ),
+                      ),
+                      if (onEdit != null)
+                        IconButton(
+                          icon: Icon(
+                            Icons.edit,
+                            size: 20,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          onPressed: onEdit,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minHeight: 36,
+                            minWidth: 36,
+                          ),
+                        ),
+                      if (onDelete != null)
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete,
+                            color: Colors.red,
+                            size: 20,
+                          ),
+                          onPressed: onDelete,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minHeight: 36,
+                            minWidth: 36,
+                          ),
+                        ),
+                    ],
+                  ),
+                )
+              else
+                SizedBox(
+                  width: 40,
+                  child: Center(
+                    child: IconButton(
                       icon: Icon(
                         story.isFavorite
                             ? Icons.favorite
                             : Icons.favorite_border,
-                        color: story.isFavorite
-                            ? Colors.red
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                        color: story.isFavorite ? Colors.red : null,
+                        size: 20,
                       ),
+                      onPressed: onFavoriteToggle,
+                      padding: EdgeInsets.zero,
                     ),
-                ],
-              ),
-
-              // Actions (Edit, Delete) - chỉ hiện trong My Stories
-              if (showActions) ...[
-                const SizedBox(height: 12),
-                const Divider(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                      onPressed: onEdit,
-                      icon: const Icon(Icons.edit_outlined, size: 18),
-                      label: const Text('Sửa'),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton.icon(
-                      onPressed: onDelete,
-                      icon: Icon(
-                        Icons.delete_outline,
-                        size: 18,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      label: Text(
-                        'Xóa',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ],
             ],
           ),
         ),
       ),
     );
   }
+
+  Widget _buildCoverImage(BuildContext context) {
+    if (story.coverImage != null && story.coverImage!.isNotEmpty) {
+      final file = File(story.coverImage!);
+      if (file.existsSync()) {
+        return Image.file(file, fit: BoxFit.cover);
+      }
+    }
+
+    // Placeholder
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Theme.of(context).colorScheme.primary,
+            Theme.of(context).colorScheme.tertiary,
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.menu_book,
+          size: 40,
+          color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.7),
+        ),
+      ),
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Hoàn thành':
+        return Colors.green;
+      case 'Tạm dừng':
+        return Colors.orange;
+      default:
+        return Colors.blue;
+    }
+  }
+
+  String _formatNumber(int number) {
+    if (number >= 1000000) {
+      return '${(number / 1000000).toStringAsFixed(1)}M';
+    } else if (number >= 1000) {
+      return '${(number / 1000).toStringAsFixed(1)}K';
+    }
+    return number.toString();
+  }
 }
 
-// Widget hiển thị truyện dạng lưới
+// Grid card cho hiển thị dạng lưới
 class StoryGridCard extends StatelessWidget {
   final Story story;
+  final int chapterCount;
   final VoidCallback? onTap;
   final VoidCallback? onFavoriteToggle;
 
   const StoryGridCard({
     super.key,
     required this.story,
+    this.chapterCount = 0,
     this.onTap,
     this.onFavoriteToggle,
   });
@@ -171,61 +298,67 @@ class StoryGridCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Ảnh bìa
+            // Ảnh bìa - giảm chiều cao
             Expanded(
               flex: 3,
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(12),
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    Center(
-                      child: Icon(
-                        Icons.menu_book_rounded,
-                        size: 48,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                    // Nút yêu thích
-                    if (onFavoriteToggle != null)
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: GestureDetector(
-                          onTap: onFavoriteToggle,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              story.isFavorite
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              size: 20,
-                              color: story.isFavorite
-                                  ? Colors.red
-                                  : Colors.grey,
-                            ),
-                          ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _buildCoverImage(context),
+                  // Favorite button
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: InkWell(
+                      onTap: onFavoriteToggle,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.black45,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Icon(
+                          story.isFavorite
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          size: 18,
+                          color: story.isFavorite ? Colors.red : Colors.white,
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                  ),
+                  // Status badge
+                  Positioned(
+                    bottom: 4,
+                    left: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _getStatusColor(story.status),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        story.status,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
+
             // Thông tin
             Expanded(
               flex: 2,
@@ -233,6 +366,7 @@ class StoryGridCard extends StatelessWidget {
                 padding: const EdgeInsets.all(8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       story.title,
@@ -243,13 +377,22 @@ class StoryGridCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      story.author,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.menu_book,
+                          size: 12,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$chapterCount chương',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -259,5 +402,45 @@ class StoryGridCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildCoverImage(BuildContext context) {
+    if (story.coverImage != null && story.coverImage!.isNotEmpty) {
+      final file = File(story.coverImage!);
+      if (file.existsSync()) {
+        return Image.file(file, fit: BoxFit.cover);
+      }
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Theme.of(context).colorScheme.primary,
+            Theme.of(context).colorScheme.tertiary,
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.menu_book,
+          size: 40,
+          color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.7),
+        ),
+      ),
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Hoàn thành':
+        return Colors.green;
+      case 'Tạm dừng':
+        return Colors.orange;
+      default:
+        return Colors.blue;
+    }
   }
 }

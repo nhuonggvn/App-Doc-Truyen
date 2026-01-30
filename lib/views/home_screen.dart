@@ -1,10 +1,9 @@
 // lib/views/home_screen.dart
-// Trang chủ hiển thị danh sách truyện và tìm kiếm
+// Màn hình trang chủ với danh sách truyện tranh
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/story_provider.dart';
-import '../models/story.dart';
 import 'widgets/story_card.dart';
 import 'story_detail_screen.dart';
 
@@ -17,13 +16,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
+  bool _isGridView = true;
   bool _isSearching = false;
-  bool _isGridView = false;
 
   @override
   void initState() {
     super.initState();
-    // Tải danh sách truyện khi khởi tạo
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<StoryProvider>(context, listen: false).loadStories();
     });
@@ -35,24 +33,13 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _onSearch(String query) {
-    final provider = Provider.of<StoryProvider>(context, listen: false);
-    if (query.isEmpty) {
-      provider.clearSearch();
-    } else {
-      provider.searchStories(query);
-    }
-  }
-
-  void _navigateToDetail(Story story) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => StoryDetailScreen(story: story)),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final storyProvider = Provider.of<StoryProvider>(context);
+    final stories = _isSearching && _searchController.text.isNotEmpty
+        ? storyProvider.searchResults
+        : storyProvider.stories;
+
     return Scaffold(
       appBar: AppBar(
         title: _isSearching
@@ -63,11 +50,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   hintText: 'Tìm kiếm truyện...',
                   border: InputBorder.none,
                 ),
-                onChanged: _onSearch,
+                onChanged: (value) {
+                  storyProvider.searchStories(value);
+                },
               )
-            : const Text('Trang Chủ'),
+            : const Text('Truyện Tranh'),
         actions: [
-          // Nút tìm kiếm
+          // Toggle search
           IconButton(
             icon: Icon(_isSearching ? Icons.close : Icons.search),
             onPressed: () {
@@ -75,15 +64,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 _isSearching = !_isSearching;
                 if (!_isSearching) {
                   _searchController.clear();
-                  Provider.of<StoryProvider>(
-                    context,
-                    listen: false,
-                  ).clearSearch();
+                  storyProvider.clearSearch();
                 }
               });
             },
           ),
-          // Nút chuyển đổi view
+          // Toggle view mode
           IconButton(
             icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
             onPressed: () {
@@ -94,79 +80,106 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Consumer<StoryProvider>(
-        builder: (context, storyProvider, child) {
-          if (storyProvider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: RefreshIndicator(
+        onRefresh: () => storyProvider.loadStories(),
+        child: storyProvider.isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : stories.isEmpty
+            ? _buildEmptyState()
+            : _isGridView
+            ? _buildGridView(stories, storyProvider)
+            : _buildListView(stories, storyProvider),
+      ),
+    );
+  }
 
-          // Lấy danh sách truyện (search results hoặc all stories)
-          final stories = _searchController.text.isNotEmpty
-              ? storyProvider.searchResults
-              : storyProvider.stories;
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            _isSearching ? Icons.search_off : Icons.menu_book,
+            size: 64,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _isSearching ? 'Không tìm thấy truyện' : 'Chưa có truyện nào',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _isSearching
+                ? 'Thử tìm kiếm với từ khóa khác'
+                : 'Thêm truyện mới để bắt đầu',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-          if (stories.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    _searchController.text.isNotEmpty
-                        ? Icons.search_off
-                        : Icons.library_books_outlined,
-                    size: 64,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _searchController.text.isNotEmpty
-                        ? 'Không tìm thấy truyện'
-                        : 'Chưa có truyện nào',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
+  Widget _buildGridView(List stories, StoryProvider storyProvider) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.65,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: stories.length,
+      itemBuilder: (context, index) {
+        final story = stories[index];
+        return FutureBuilder<int>(
+          future: storyProvider.getChapterCount(story.id!),
+          builder: (context, snapshot) {
+            return StoryGridCard(
+              story: story,
+              chapterCount: snapshot.data ?? 0,
+              onTap: () => _openStoryDetail(story),
+              onFavoriteToggle: () => storyProvider.toggleFavorite(story),
             );
-          }
+          },
+        );
+      },
+    );
+  }
 
-          // Hiển thị dạng Grid hoặc List
-          if (_isGridView) {
-            return GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.7,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              itemCount: stories.length,
-              itemBuilder: (context, index) {
-                final story = stories[index];
-                return StoryGridCard(
-                  story: story,
-                  onTap: () => _navigateToDetail(story),
-                  onFavoriteToggle: () => storyProvider.toggleFavorite(story),
-                );
-              },
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: stories.length,
-            itemBuilder: (context, index) {
-              final story = stories[index];
+  // danh sách truyện
+  Widget _buildListView(List stories, StoryProvider storyProvider) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(8),
+      itemCount: stories.length,
+      itemBuilder: (context, index) {
+        final story = stories[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: FutureBuilder<int>(
+            future: storyProvider.getChapterCount(story.id!),
+            builder: (context, snapshot) {
               return StoryCard(
                 story: story,
-                onTap: () => _navigateToDetail(story),
+                chapterCount: snapshot.data ?? 0,
+                onTap: () => _openStoryDetail(story),
                 onFavoriteToggle: () => storyProvider.toggleFavorite(story),
               );
             },
-          );
-        },
-      ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openStoryDetail(story) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => StoryDetailScreen(story: story)),
     );
   }
 }
