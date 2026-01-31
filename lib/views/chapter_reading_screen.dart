@@ -121,7 +121,7 @@ class _ChapterReadingScreenState extends State<ChapterReadingScreen> {
             // Top bar
             AnimatedPositioned(
               duration: const Duration(milliseconds: 200),
-              top: _showControls ? 0 : -150, // Ẩn cao hơn cho màn hình lớn
+              top: _showControls ? -50 : -150, // Ẩn cao hơn cho màn hình lớn
               left: 0,
               right: 0,
               child: Container(
@@ -133,9 +133,11 @@ class _ChapterReadingScreenState extends State<ChapterReadingScreen> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.black.withValues(alpha: 0.8),
+                      Colors.black,
+                      Colors.black.withValues(alpha: 0.85),
                       Colors.transparent,
                     ],
+                    stops: const [0.0, 0.6, 1.0],
                   ),
                 ),
                 child: AppBar(
@@ -189,9 +191,11 @@ class _ChapterReadingScreenState extends State<ChapterReadingScreen> {
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
                     colors: [
+                      Colors.black,
                       Colors.black.withValues(alpha: 0.9),
                       Colors.transparent,
                     ],
+                    stops: const [0.0, 0.7, 1.0],
                   ),
                 ),
                 child: Row(

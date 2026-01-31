@@ -33,7 +33,7 @@ class StoryCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: SizedBox(
-          height: 135,
+          height: 165,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -60,7 +60,6 @@ class StoryCard extends StatelessWidget {
 
                       // Tác giả
                       Text(
-
                         story.author,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.primary,
@@ -99,7 +98,7 @@ class StoryCard extends StatelessWidget {
                         ),
                       const SizedBox(height: 8),
 
-                      // Thông tin thêm
+                      // Thông tin thêm - lượt xem và trạng thái
                       Row(
                         children: [
                           Icon(
@@ -112,19 +111,6 @@ class StoryCard extends StatelessWidget {
                           const SizedBox(width: 4),
                           Text(
                             _formatNumber(story.viewsCount),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(width: 12),
-                          Icon(
-                            Icons.menu_book,
-                            size: 14,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '$chapterCount chương',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           const SizedBox(width: 12),
@@ -144,6 +130,25 @@ class StoryCard extends StatelessWidget {
                                 color: Colors.white,
                               ),
                             ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      // Số chương - dòng riêng
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.menu_book,
+                            size: 14,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$chapterCount chương',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
                           ),
                         ],
                       ),
@@ -304,9 +309,9 @@ class StoryGridCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Ảnh bìa - giảm chiều cao
+            // Ảnh bìa - tăng chiều cao
             Expanded(
-              flex: 3,
+              flex: 5,
               child: Stack(
                 fit: StackFit.expand,
                 children: [

@@ -16,6 +16,8 @@ class MyStoriesScreen extends StatefulWidget {
 }
 
 class _MyStoriesScreenState extends State<MyStoriesScreen> {
+  bool _isGridView = false;
+
   @override
   void initState() {
     super.initState();
@@ -69,18 +71,38 @@ class _MyStoriesScreenState extends State<MyStoriesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Truyện Của Tôi'),
-        actions: [
-          if (stories.isNotEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16),
+        title: Row(
+          children: [
+            if (stories.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Text(
-                  '${stories.length} truyện',
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  '${stories.length}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               ),
-            ),
+            if (stories.isNotEmpty) const SizedBox(width: 8),
+            const Text('Truyện Của Tôi'),
+          ],
+        ),
+        actions: [
+          // Toggle view mode
+          IconButton(
+            icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
+            onPressed: () {
+              setState(() {
+                _isGridView = !_isGridView;
+              });
+            },
+          ),
         ],
       ),
       body: storyProvider.isLoading
@@ -89,45 +111,9 @@ class _MyStoriesScreenState extends State<MyStoriesScreen> {
           ? _buildEmptyState()
           : RefreshIndicator(
               onRefresh: () => storyProvider.loadStories(),
-              child: ListView.builder(
-                padding: const EdgeInsets.all(8),
-                itemCount: stories.length,
-                itemBuilder: (context, index) {
-                  final story = stories[index];
-                  return Dismissible(
-                    key: Key('story_${story.id}'),
-                    direction: DismissDirection.endToStart,
-                    confirmDismiss: (_) => _showDeleteConfirmation(story),
-                    background: Container(
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.delete, color: Colors.white),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: FutureBuilder<int>(
-                        future: storyProvider.getChapterCount(story.id!),
-                        builder: (context, snapshot) {
-                          return StoryCard(
-                            story: story,
-                            chapterCount: snapshot.data ?? 0,
-                            showActions: true,
-                            onTap: () => _openStoryDetail(story),
-                            onFavoriteToggle: () =>
-                                storyProvider.toggleFavorite(story),
-                            onEdit: () => _editStory(story),
-                            onDelete: () => _showDeleteConfirmation(story),
-                          );
-                        },
-                      ),
-                    ),
-                  );
-                },
-              ),
+              child: _isGridView
+                  ? _buildGridView(stories, storyProvider)
+                  : _buildListView(stories, storyProvider),
             ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
@@ -139,6 +125,74 @@ class _MyStoriesScreenState extends State<MyStoriesScreen> {
         icon: const Icon(Icons.add),
         label: const Text('Thêm truyện'),
       ),
+    );
+  }
+
+  Widget _buildGridView(List stories, StoryProvider storyProvider) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.7,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: stories.length,
+      itemBuilder: (context, index) {
+        final story = stories[index];
+        return FutureBuilder<int>(
+          future: storyProvider.getChapterCount(story.id!),
+          builder: (context, snapshot) {
+            return StoryGridCard(
+              story: story,
+              chapterCount: snapshot.data ?? 0,
+              onTap: () => _openStoryDetail(story),
+              onFavoriteToggle: () => storyProvider.toggleFavorite(story),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildListView(List stories, StoryProvider storyProvider) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(8),
+      itemCount: stories.length,
+      itemBuilder: (context, index) {
+        final story = stories[index];
+        return Dismissible(
+          key: Key('story_${story.id}'),
+          direction: DismissDirection.endToStart,
+          confirmDismiss: (_) => _showDeleteConfirmation(story),
+          background: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Colors.red,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.delete, color: Colors.white),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: FutureBuilder<int>(
+              future: storyProvider.getChapterCount(story.id!),
+              builder: (context, snapshot) {
+                return StoryCard(
+                  story: story,
+                  chapterCount: snapshot.data ?? 0,
+                  showActions: true,
+                  onTap: () => _openStoryDetail(story),
+                  onFavoriteToggle: () => storyProvider.toggleFavorite(story),
+                  onEdit: () => _editStory(story),
+                  onDelete: () => _showDeleteConfirmation(story),
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 
