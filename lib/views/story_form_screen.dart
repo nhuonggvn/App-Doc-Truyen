@@ -366,7 +366,7 @@ class _StoryFormScreenState extends State<StoryFormScreen> {
 
               // Trạng thái
               DropdownButtonFormField<String>(
-                value: _selectedStatus,
+                initialValue: _selectedStatus,
                 decoration: const InputDecoration(
                   labelText: 'Trạng thái',
                   prefixIcon: Icon(Icons.bookmark),

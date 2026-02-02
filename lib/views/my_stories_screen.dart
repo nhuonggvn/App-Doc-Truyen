@@ -77,15 +77,15 @@ class _MyStoriesScreenState extends State<MyStoriesScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
+                  color: const Color.fromARGB(255, 37, 135, 255), // Xanh biển
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   '${stories.length}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -124,6 +124,8 @@ class _MyStoriesScreenState extends State<MyStoriesScreen> {
         },
         icon: const Icon(Icons.add),
         label: const Text('Thêm truyện'),
+        backgroundColor: const Color.fromARGB(255, 0, 123, 255),  // Màu nền
+        foregroundColor: Colors.white, // Màu icon và text
       ),
     );
   }

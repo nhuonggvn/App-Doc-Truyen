@@ -269,9 +269,9 @@ class StoryCard extends StatelessWidget {
       case 'Hoàn thành':
         return Colors.green;
       case 'Tạm dừng':
-        return Colors.orange;
+        return const Color.fromARGB(255, 255, 17, 0);
       default:
-        return Colors.blue;
+        return const Color.fromARGB(255, 0, 140, 255);
     }
   }
 
@@ -443,9 +443,9 @@ class StoryGridCard extends StatelessWidget {
       case 'Hoàn thành':
         return Colors.green;
       case 'Tạm dừng':
-        return Colors.orange;
+        return const Color.fromARGB(255, 255, 17, 0);
       default:
-        return Colors.blue;
+        return const Color.fromARGB(255, 0, 140, 255);
     }
   }
 }
