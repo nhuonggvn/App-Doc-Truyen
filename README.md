@@ -149,7 +149,9 @@ reading_history(id, story_id, chapter_id, read_at)
 ## 📱 Screenshots
 
 <p>
-Giao diện sáng
+
+# Giao diện sáng
+
 <img src="Pictures\Screenshot_1.jpg" width="200"/>
 <img src="Pictures\Screenshot_2.jpg" width="200"/>
 <img src="Pictures\Screenshot_3.jpg" width="200"/>
@@ -163,7 +165,8 @@ Giao diện sáng
 <img src="Pictures\Screenshot_11.jpg" width="200"/>
 <img src="Pictures\Screenshot_12.jpg" width="200"/>
 
-Giao diện tối
+# Giao diện tối
+
 <img src="Pictures\Screenshot_1 (2).jpg" width="200"/>
 <img src="Pictures\Screenshot_2 (2).jpg" width="200"/>
 <img src="Pictures\Screenshot_3 (2).jpg" width="200"/>
