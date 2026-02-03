@@ -111,7 +111,7 @@ reading_history(id, story_id, chapter_id, read_at)
 
 1. **Clone project**
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/nhuongg/App-Doc-Truyen.git
    cd flutter_app_doctruyen
    ```
 

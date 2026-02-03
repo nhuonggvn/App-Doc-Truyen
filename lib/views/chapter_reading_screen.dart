@@ -33,6 +33,12 @@ class _ChapterReadingScreenState extends State<ChapterReadingScreen> {
     super.initState();
     _loadAdjacentChapters();
     _scrollController.addListener(_onScroll);
+
+    // Đánh dấu chương này đã được đọc
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final storyProvider = Provider.of<StoryProvider>(context, listen: false);
+      storyProvider.markChapterAsRead(widget.story.id!, widget.chapter.id!);
+    });
   }
 
   @override

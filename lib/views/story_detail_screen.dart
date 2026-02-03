@@ -36,6 +36,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       final provider = Provider.of<StoryProvider>(context, listen: false);
       provider.loadChapters(widget.story.id!);
       provider.loadComments(widget.story.id!);
+      provider.loadReadChapterIds(widget.story.id!);
       provider.incrementViews(widget.story.id!);
     });
   }
@@ -541,21 +542,34 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
 
   Widget _buildChapterTile(Chapter chapter, int index) {
     final dateFormat = DateFormat('dd/MM/yyyy');
+    final storyProvider = Provider.of<StoryProvider>(context);
+    final isRead = storyProvider.isChapterRead(chapter.id!);
+
+    // Màu vàng cho chương đã đọc
+    final readColor = const Color(0xFFFFB300); // Amber/vàng đậm
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+          backgroundColor: isRead
+              ? readColor.withValues(alpha: 0.2)
+              : Theme.of(context).colorScheme.primaryContainer,
           child: Text(
             '${chapter.chapterNumber}',
             style: TextStyle(
-              color: Theme.of(context).colorScheme.primary,
+              color: isRead ? readColor : Theme.of(context).colorScheme.primary,
               fontWeight: FontWeight.bold,
             ),
           ),
         ),
-        title: Text(chapter.displayTitle),
+        title: Text(
+          chapter.displayTitle,
+          style: TextStyle(
+            color: isRead ? readColor : null,
+            fontWeight: isRead ? FontWeight.w600 : null,
+          ),
+        ),
         subtitle: Text(
           dateFormat.format(chapter.createdAt),
           style: Theme.of(context).textTheme.bodySmall,
@@ -568,7 +582,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right),
+            Icon(Icons.chevron_right, color: isRead ? readColor : null),
           ],
         ),
         onTap: () => _openChapter(chapter),

@@ -1,1 +1,13 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"app-doctruyen-c7d68","appId":"1:440742089229:android:89aa6e79651b6eee073b44","fileOutput":"android/app/google-services.json"}}}}}
+{
+    "flutter": {
+        "platforms": {
+            "android": {
+                "default": {
+                    "projectId": "app-doctruyen-c7d68",
+                    "appId": "1:440742089229:android:89aa6e79651b6eee073b44",
+                    "fileOutput": "android/app/google-services.json"
+                }
+            }
+        }
+    }
+}

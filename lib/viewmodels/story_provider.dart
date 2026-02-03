@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import '../models/story.dart';
 import '../models/chapter.dart';
 import '../models/comment.dart';
+import '../models/reading_history.dart';
 import '../services/database_helper.dart';
 
 class StoryProvider with ChangeNotifier {
@@ -17,6 +18,8 @@ class StoryProvider with ChangeNotifier {
   List<Story> _favorites = [];
   List<Story> _searchResults = [];
   List<Chapter> _currentChapters = [];
+  List<ReadingHistory> _readingHistory = [];
+  Set<int> _readChapterIds = {};
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -25,6 +28,8 @@ class StoryProvider with ChangeNotifier {
   List<Story> get favorites => _favorites;
   List<Story> get searchResults => _searchResults;
   List<Chapter> get currentChapters => _currentChapters;
+  List<ReadingHistory> get readingHistory => _readingHistory;
+  Set<int> get readChapterIds => _readChapterIds;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -365,6 +370,85 @@ class StoryProvider with ChangeNotifier {
     } catch (e) {
       _errorMessage = 'Không thể xóa bình luận.';
       notifyListeners();
+      return false;
+    }
+  }
+
+  // ==================== READING HISTORY ====================
+
+  // Đánh dấu chương đã đọc
+  Future<void> markChapterAsRead(int storyId, int chapterId) async {
+    try {
+      await _dbHelper.markChapterAsRead(storyId, chapterId);
+      _readChapterIds.add(chapterId);
+      // Tự động cập nhật danh sách lịch sử đọc (không hiện loading)
+      await _silentLoadReadingHistory();
+    } catch (e) {
+      debugPrint('Error marking chapter as read: $e');
+    }
+  }
+
+  // Load danh sách chapter đã đọc của 1 truyện
+  Future<void> loadReadChapterIds(int storyId) async {
+    try {
+      _readChapterIds = await _dbHelper.getReadChapterIds(storyId);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading read chapters: $e');
+    }
+  }
+
+  // Kiểm tra chương đã đọc chưa
+  bool isChapterRead(int chapterId) {
+    return _readChapterIds.contains(chapterId);
+  }
+
+  // Load lịch sử đọc (hiện loading indicator)
+  Future<void> loadReadingHistory() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      _readingHistory = await _dbHelper.getReadingHistory();
+      _errorMessage = null;
+    } catch (e) {
+      _errorMessage = 'Không thể tải lịch sử đọc.';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  // Load lịch sử đọc ngầm (không hiện loading, giống như favorite)
+  Future<void> _silentLoadReadingHistory() async {
+    try {
+      _readingHistory = await _dbHelper.getReadingHistory();
+      _errorMessage = null;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error silent loading reading history: $e');
+    }
+  }
+
+  // Xóa lịch sử đọc của 1 truyện
+  Future<bool> deleteReadingHistoryByStory(int storyId) async {
+    try {
+      await _dbHelper.deleteReadingHistoryByStory(storyId);
+      await loadReadingHistory();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Xóa toàn bộ lịch sử đọc
+  Future<bool> clearAllReadingHistory() async {
+    try {
+      await _dbHelper.clearAllReadingHistory();
+      _readingHistory.clear();
+      notifyListeners();
+      return true;
+    } catch (e) {
       return false;
     }
   }

@@ -7,6 +7,7 @@ import 'package:path/path.dart';
 import '../models/story.dart';
 import '../models/chapter.dart';
 import '../models/comment.dart';
+import '../models/reading_history.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -26,10 +27,10 @@ class DatabaseHelper {
 
   // Khởi tạo database
   Future<Database> _initDatabase() async {
-    String path = join(await getDatabasesPath(), 'stories_database_v3.db');
+    String path = join(await getDatabasesPath(), 'stories_database_v4.db');
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -38,7 +39,6 @@ class DatabaseHelper {
   // Upgrade database khi thay đổi version
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 3) {
-      // Thêm bảng comments nếu chưa có
       await db.execute('''
         CREATE TABLE IF NOT EXISTS comments(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,6 +48,19 @@ class DatabaseHelper {
           content TEXT NOT NULL,
           created_at TEXT NOT NULL,
           FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE
+        )
+      ''');
+    }
+    if (oldVersion < 4) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS reading_history(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          story_id INTEGER NOT NULL,
+          chapter_id INTEGER NOT NULL,
+          read_at TEXT NOT NULL,
+          FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE,
+          FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE,
+          UNIQUE(story_id, chapter_id)
         )
       ''');
     }
@@ -104,6 +117,19 @@ class DatabaseHelper {
         content TEXT NOT NULL,
         created_at TEXT NOT NULL,
         FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // Bảng reading_history
+    await db.execute('''
+      CREATE TABLE reading_history(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        story_id INTEGER NOT NULL,
+        chapter_id INTEGER NOT NULL,
+        read_at TEXT NOT NULL,
+        FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE,
+        UNIQUE(story_id, chapter_id)
       )
     ''');
 
@@ -411,6 +437,63 @@ class DatabaseHelper {
   Future<int> deleteComment(int commentId) async {
     final db = await database;
     return await db.delete('comments', where: 'id = ?', whereArgs: [commentId]);
+  }
+
+  // ==================== READING HISTORY ====================
+
+  // Đánh dấu chương đã đọc
+  Future<void> markChapterAsRead(int storyId, int chapterId) async {
+    final db = await database;
+    await db.insert('reading_history', {
+      'story_id': storyId,
+      'chapter_id': chapterId,
+      'read_at': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  // Lấy danh sách chapter_id đã đọc của 1 truyện
+  Future<Set<int>> getReadChapterIds(int storyId) async {
+    final db = await database;
+    final maps = await db.query(
+      'reading_history',
+      columns: ['chapter_id'],
+      where: 'story_id = ?',
+      whereArgs: [storyId],
+    );
+    return maps.map((m) => m['chapter_id'] as int).toSet();
+  }
+
+  // Lấy lịch sử đọc (kèm thông tin truyện và chương)
+  Future<List<ReadingHistory>> getReadingHistory({int limit = 50}) async {
+    final db = await database;
+    final maps = await db.rawQuery(
+      '''
+      SELECT rh.*, s.title as story_title, s.cover_image, c.chapter_number, c.title as chapter_title
+      FROM reading_history rh
+      JOIN stories s ON rh.story_id = s.id
+      JOIN chapters c ON rh.chapter_id = c.id
+      ORDER BY rh.read_at DESC
+      LIMIT ?
+    ''',
+      [limit],
+    );
+    return List.generate(maps.length, (i) => ReadingHistory.fromMap(maps[i]));
+  }
+
+  // Xóa lịch sử đọc của 1 truyện
+  Future<int> deleteReadingHistoryByStory(int storyId) async {
+    final db = await database;
+    return await db.delete(
+      'reading_history',
+      where: 'story_id = ?',
+      whereArgs: [storyId],
+    );
+  }
+
+  // Xóa toàn bộ lịch sử đọc
+  Future<int> clearAllReadingHistory() async {
+    final db = await database;
+    return await db.delete('reading_history');
   }
 
   // Đóng database

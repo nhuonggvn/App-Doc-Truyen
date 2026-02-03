@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'my_stories_screen.dart';
+import 'reading_history_screen.dart';
 import 'profile_screen.dart';
 
 class MainNavigation extends StatefulWidget {
@@ -19,6 +20,7 @@ class _MainNavigationState extends State<MainNavigation> {
   final List<Widget> _screens = const [
     HomeScreen(),
     MyStoriesScreen(),
+    ReadingHistoryScreen(),
     ProfileScreen(),
   ];
 
@@ -43,6 +45,11 @@ class _MainNavigationState extends State<MainNavigation> {
             icon: Icon(Icons.edit_note_outlined),
             selectedIcon: Icon(Icons.edit_note),
             label: 'Truyện của tôi',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.history_outlined),
+            selectedIcon: Icon(Icons.history),
+            label: 'Lịch sử',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
