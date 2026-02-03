@@ -46,7 +46,7 @@ class ThemeProvider with ChangeNotifier {
     _prefs?.setBool(_themeKey, _isDarkMode);
   }
 
-  // Light Theme - định nghĩa static để không tạo lại mỗi lần
+  // Light Theme - định nghĩa static để không phải tạo lạio
   static final ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,

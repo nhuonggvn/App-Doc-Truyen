@@ -108,9 +108,9 @@ class _AuthScreenState extends State<AuthScreen> {
                     const Color(0xFF0F3460),
                   ]
                 : [
-                    const Color(0xFF667eea),
-                    const Color(0xFF764ba2),
-                    const Color(0xFFf093fb),
+                    const Color.fromARGB(255, 74, 107, 255),
+                    const Color.fromARGB(255, 111, 63, 158),
+                    const Color.fromARGB(255, 236, 61, 255),
                   ],
           ),
         ),
@@ -139,7 +139,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                     const SizedBox(height: 24),
                     const Text(
-                      'Ứng Dụng Đọc Truyện',
+                      'Truyện Hay',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
