@@ -148,10 +148,11 @@ reading_history(id, story_id, chapter_id, read_at)
 
 ## 📱 Screenshots
 
-*Thêm screenshots của ứng dụng tại đây*
+<p>
+</p>
 
 ---
 
 ## 📄 License
 
-MIT License
+Nguyen Van Huong License
