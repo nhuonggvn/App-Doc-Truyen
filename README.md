@@ -17,43 +17,44 @@
 - 👤 **Hồ sơ**: Đổi avatar và tên hiển thị
 
 ---
-
-lib/
-├── main.dart                          # Entry point, khởi tạo providers
-├── firebase_options.dart              # Cấu hình Firebase
-│
-├── models/                            # Data models
-│   ├── story.dart                     # Model truyện
-│   ├── chapter.dart                   # Model chương + ChapterImage
-│   ├── comment.dart                   # Model bình luận
-│   └── reading_history.dart           # Model lịch sử đọc
-│
-├── services/                          # Business logic & data access
-│   ├── database_helper.dart           # SQLite CRUD operations
-│   └── firebase_service.dart          # Firebase services
-│
-├── viewmodels/                        # State management (Provider)
-│   ├── auth_provider.dart             # Xử lý đăng nhập/đăng ký
-│   ├── story_provider.dart            # Quản lý truyện, chapters, comments
-│   └── theme_provider.dart            # Quản lý theme sáng/tối
-│
-└── views/                             # UI screens
-    ├── main_navigation.dart           # Bottom navigation chính
-    ├── auth_screen.dart               # Màn hình đăng nhập/đăng ký
-    ├── home_screen.dart               # Trang chủ, danh sách truyện
-    ├── my_stories_screen.dart         # Quản lý truyện của tôi
-    ├── story_form_screen.dart         # Form thêm/sửa truyện
-    ├── story_detail_screen.dart       # Chi tiết truyện, danh sách chương
-    ├── chapter_form_screen.dart       # Form thêm chương mới
-    ├── chapter_edit_screen.dart       # Sửa chương đã có
-    ├── chapter_reading_screen.dart    # Màn hình đọc truyện
-    ├── reading_history_screen.dart    # Lịch sử đọc
-    ├── profile_screen.dart            # Hồ sơ người dùng
-    └── widgets/                       # Reusable widgets
-        └── story_card.dart            # Card hiển thị truyện
 ```
 
+lib/
+├── main.dart                              # Entry point, khởi tạo providers
+├── firebase_options.dart                  # Cấu hình Firebase
+│
+├── models/                                # Data models
+│   ├── story.dart                         # Model truyện
+│   ├── chapter.dart                       # Model chương + ChapterImage
+│   ├── comment.dart                       # Model bình luận
+│   └── reading_history.dart               # Model lịch sử đọc
+│
+├── services/                              # Business logic & data access
+│   ├── database_helper.dart               # SQLite CRUD operations
+│   └── firebase_service.dart              # Firebase services
+│
+├── viewmodels/                            # State management (Provider)
+│   ├── auth_provider.dart                 # Xử lý đăng nhập/đăng ký
+│   ├── story_provider.dart                # Quản lý truyện, chapters, comments
+│   └── theme_provider.dart                # Quản lý theme sáng/tối
+│
+└── views/                                 # UI screens
+    ├── main_navigation.dart               # Bottom navigation chính
+    ├── auth_screen.dart                   # Màn hình đăng nhập/đăng ký
+    ├── home_screen.dart                   # Trang chủ, danh sách truyện
+    ├── my_stories_screen.dart             # Quản lý truyện của tôi
+    ├── story_form_screen.dart             # Form thêm/sửa truyện
+    ├── story_detail_screen.dart           # Chi tiết truyện, danh sách chương
+    ├── chapter_form_screen.dart           # Form thêm chương mới
+    ├── chapter_edit_screen.dart           # Sửa chương đã có
+    ├── chapter_reading_screen.dart        # Màn hình đọc truyện
+    ├── reading_history_screen.dart        # Lịch sử đọc
+    ├── profile_screen.dart                # Hồ sơ người dùng
+    └── widgets/                           # Reusable widgets
+        └── story_card.dart                # Card hiển thị truyện
+```
 ---
+
 
 ## 🏗️ Kiến trúc
 
