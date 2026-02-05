@@ -1,0 +1,57 @@
+Các tính năng chính của ứng dụng đọc truyện - giai đoạn 01 
+Mục tiêu: 
+- Cung cấp một ứng dụng đọc truyện (chữ)
+- Có tính năng quản lý user/member
+- Có tính năng nạp tiền mua điểm để dùng thanh toán, unlock truyện. 
+
+Đề xuất 
+- Ứng dụng có thể được phát triển thành nhiều giai đoạn. Ở giai đoạn 01 tập trung vào việc cung cấp các tính năng cơ bản cho ứng dụng đọc truyện bao gồm: 
+	+ Chức năng quản lý tài khoản: admin/mod/user 
+	+ Chức năng đọc truyện 
+	+ Chức năng xem danh mục truyện 
+	+ Chức năng thanh toán (in app purchase, hoặc tùy vào phương thức mà BE cung cấp) 
+	+ Chức năng mua chap --> phụ thuộc vào BE, và cách BE trả dữ liệu 
+	
+Mô tả giao diện chính: 
+Chia theo Navigation Bar --> Bấm vào menu bên trái hiện ra 3 option chính như sau: 
+	- Trang chính	
+			+ Danh sách truyện đọc gần đây		
+			+ Danh sách truyện gợi ý		
+			+ Chức năng tìm kiếm truyện	--> Màn tìm kiếm truyện	
+			+ My Favourite list		
+			+ Thông báo	--> Màn danh sách thông báo	
+				
+	- Kho sách	
+			+ Tab danh sách truyện chia theo loại: ngôn tình, cổ trang, khoa học, anime...		
+			+ Tab danh sách truyện đang được đọc nhiều: Most viewed, hoặc BXH truyện		
+				
+	- User Setting	
+			+ Thông tin người dùng		
+			+ Thông tin liên kết, ví	==> Chưa rõ cơ chế thanh toán của BE đang dùng là gì? và dự định dùng gì ?	
+			+ Lịch sử mua bán, hoạt động		
+			+ Thông tin liên hệ		
+Tính năng chính	
+	- Đọc truyện	
+			+ Màn chi tiết giới thiệu truyện 
+				- mô tả ngắn	
+				- các nhãn (hashtag/label) để chia thể loại	
+				- thông tin truyện: số tập	
+				- related, 
+				- suggestion tryện khác	
+				- bình luận về truyện của các users	
+			+ Màn đọc truyện	
+				- Cơ chế chia trang, seek trang	
+				- Cơ chế lưu trang đang đọc	
+				- next/previous page animation, transition	
+				- Danh sách mục lục	
+				- Bookmark trang	
+				- theme dark/light mode	
+				- Setting đọc 
+					+ Cỡ chữ
+					
+	- Search truyện	
+			+ Hot search keyword		
+			+ Trend reading		
+				
+	- Quảng cáo	
+			+ Pop up quảng cáo

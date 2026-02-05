@@ -177,6 +177,8 @@ reading_history(id, story_id, chapter_id, read_at)
 
 ---
 
-## 📄 Nguyen Van Huong License
+## 📄 License
 
-
+- Dự án này phát triển nhằm mục đích nghiên cứu và học tập về Flutter và Firebase.
+- Nếu như có ai đó muốn sử dụng thì xin vui lòng ghi rõ nguồn. Xin cảm ơn.
+- Nguyễn Văn Hưởng

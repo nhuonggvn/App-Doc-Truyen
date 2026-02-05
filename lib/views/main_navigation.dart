@@ -6,6 +6,7 @@ import 'home_screen.dart';
 import 'my_stories_screen.dart';
 import 'reading_history_screen.dart';
 import 'profile_screen.dart';
+import 'otruyen_home_screen.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -19,6 +20,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   final List<Widget> _screens = const [
     HomeScreen(),
+    OTruyenHomeScreen(),
     MyStoriesScreen(),
     ReadingHistoryScreen(),
     ProfileScreen(),
@@ -40,6 +42,11 @@ class _MainNavigationState extends State<MainNavigation> {
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
             label: 'Trang chủ',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.cloud_outlined),
+            selectedIcon: Icon(Icons.cloud),
+            label: 'Online',
           ),
           NavigationDestination(
             icon: Icon(Icons.edit_note_outlined),
