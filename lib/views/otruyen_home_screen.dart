@@ -238,16 +238,37 @@ class _OTruyenHomeScreenState extends State<OTruyenHomeScreen>
     return Column(
       children: [
         Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.all(8),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 0.75,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
-            itemCount: _stories.length,
-            itemBuilder: (context, index) => _buildStoryCard(_stories[index]),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Tính số cột dựa trên chiều rộng màn hình
+              // Mỗi card có chiều rộng tối thiểu 150px
+              final availableWidth = constraints.maxWidth;
+              final isWeb = availableWidth > 600;
+
+              // Padding 120px mỗi bên cho web
+              final horizontalPadding = isWeb ? 120.0 : 8.0;
+              final contentWidth = availableWidth - (horizontalPadding * 2);
+
+              // Tính số cột: tối thiểu 2, tối đa 5
+              int crossAxisCount = (contentWidth / 180).floor();
+              crossAxisCount = crossAxisCount.clamp(2, 5);
+
+              return Padding(
+                padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                child: GridView.builder(
+                  padding: const EdgeInsets.all(8),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    childAspectRatio: 0.75,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemCount: _stories.length,
+                  itemBuilder: (context, index) =>
+                      _buildStoryCard(_stories[index]),
+                ),
+              );
+            },
           ),
         ),
         _buildPagination(),
@@ -271,7 +292,7 @@ class _OTruyenHomeScreenState extends State<OTruyenHomeScreen>
                   ? Image.network(
                       thumbUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      errorBuilder: (_, _, _) => Container(
                         color: Colors.grey[300],
                         child: const Icon(Icons.image_not_supported, size: 40),
                       ),
@@ -312,7 +333,10 @@ class _OTruyenHomeScreenState extends State<OTruyenHomeScreen>
                         story.chaptersLatest!.isNotEmpty)
                       Text(
                         'Chương ${story.chaptersLatest!.first}',
-                        style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: const Color.fromARGB(255, 160, 6, 127),
+                        ),
                       ),
                   ],
                 ),

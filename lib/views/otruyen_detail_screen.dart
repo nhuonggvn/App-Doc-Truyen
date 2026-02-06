@@ -139,7 +139,7 @@ class _OTruyenDetailScreenState extends State<OTruyenDetailScreen> {
                   Image.network(
                     thumbUrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+                    errorBuilder: (_, _, _) => Container(
                       color: Colors.grey[800],
                       child: const Icon(
                         Icons.book,

@@ -49,6 +49,30 @@ class MyApp extends StatelessWidget {
             darkTheme: ThemeProvider.darkTheme,
             themeMode:
                 themeProvider.themeMode, // Chỉ đổi mode, không rebuild theme
+            // Builder để full screen background trên desktop/web
+            builder: (context, child) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              return Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isDark
+                        ? [
+                            const Color(0xFF1A1A2E),
+                            const Color(0xFF16213E),
+                            const Color(0xFF0F3460),
+                          ]
+                        : [
+                            const Color.fromARGB(255, 74, 107, 255),
+                            const Color.fromARGB(255, 111, 63, 158),
+                            const Color.fromARGB(255, 236, 61, 255),
+                          ],
+                  ),
+                ),
+                child: child,
+              );
+            },
             home: Consumer<AuthProvider>(
               builder: (context, authProvider, child) {
                 // Điều hướng dựa trên trạng thái đăng nhập
