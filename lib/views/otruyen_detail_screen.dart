@@ -278,50 +278,58 @@ class _OTruyenDetailScreenState extends State<OTruyenDetailScreen> {
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         label: const Text('Đọc từ đầu'),
-                        onPressed: () => _openChapter(
-                          story.chapters.first,
-                          0,
-                        ),
+                        onPressed: () => _openChapter(story.chapters.first, 0),
                       ),
                   ],
                 ),
+                const SizedBox(height: 8),
+
+                // Container danh sách chương với scroll riêng
+                if (story.chapters.isEmpty)
+                  Container(
+                    height: 100,
+                    alignment: Alignment.center,
+                    child: const Text('Chưa có chương nào'),
+                  )
+                else
+                  Container(
+                    height: 400, // Chiều cao cố định
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: ListView.builder(
+                      itemCount: story.chapters.length,
+                      itemBuilder: (context, index) {
+                        final chapter = story.chapters[index];
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primaryContainer,
+                            radius: 16,
+                            child: Text(
+                              chapter.chapterName,
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          ),
+                          title: Text(
+                            chapter.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          dense: true,
+                          onTap: () => _openChapter(chapter, index),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 32),
               ],
             ),
           ),
         ),
-
-        // List chapters
-        if (story.chapters.isEmpty)
-          const SliverFillRemaining(
-            child: Center(child: Text('Chưa có chương nào')),
-          )
-        else
-          SliverList(
-            delegate: SliverChildBuilderDelegate((context, index) {
-              final chapter = story.chapters[index];
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Theme.of(
-                    context,
-                  ).colorScheme.primaryContainer,
-                  child: Text(
-                    chapter.chapterName,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-                title: Text(
-                  chapter.displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _openChapter(chapter, index),
-              );
-            }, childCount: story.chapters.length),
-          ),
-
-        // Bottom padding
-        const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
       ],
     );
   }
