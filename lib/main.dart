@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'firebase_options.dart';
 
 import 'viewmodels/auth_provider.dart';
@@ -12,6 +13,7 @@ import 'viewmodels/story_provider.dart';
 import 'viewmodels/theme_provider.dart';
 import 'views/auth_screen.dart';
 import 'views/main_navigation.dart';
+import 'services/image_database_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +23,10 @@ void main() async {
 
   // Khởi tạo Firebase với options
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Khởi tạo Hive cho database ảnh
+  await Hive.initFlutter();
+  await ImageDatabaseService.init();
 
   runApp(const MyApp());
 }

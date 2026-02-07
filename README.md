@@ -1,6 +1,6 @@
 # 📖 Flutter App Đọc Truyện
 
-Ứng dụng đọc truyện tranh (manga) được xây dựng bằng Flutter với Firebase Authentication và SQLite database.
+Ứng dụng đọc truyện tranh (images) được xây dựng bằng Flutter với Firebase Authentication và SQLite database.
 
 ---
 
@@ -62,22 +62,22 @@ lib/
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         VIEWS                                │
+│                         VIEWS                               │
 │  (auth_screen, home_screen, story_detail_screen, ...)       │
 └─────────────────────────┬───────────────────────────────────┘
                           │ Provider.of<>
 ┌─────────────────────────▼───────────────────────────────────┐
-│                      VIEWMODELS                              │
+│                      VIEWMODELS                             │
 │  (auth_provider, story_provider, theme_provider)            │
 └─────────────────────────┬───────────────────────────────────┘
                           │
 ┌─────────────────────────▼───────────────────────────────────┐
-│                       SERVICES                               │
+│                       SERVICES                              │
 │  (database_helper, firebase_service)                        │
 └─────────────────────────┬───────────────────────────────────┘
                           │
 ┌─────────────────────────▼───────────────────────────────────┐
-│                        MODELS                                │
+│                        MODELS                               │
 │  (Story, Chapter, Comment, ReadingHistory)                  │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -109,8 +109,8 @@ reading_history(id, story_id, chapter_id, read_at)
 
 1. **Clone project**
    ```bash
-   git clone https://github.com/nhuongg/App-Doc-Truyen.git
-   cd flutter_app_doctruyen
+   git clone https://github.com/nhuonggvn/App-Doc-Truyen.git
+   cd App-Doc-Truyen
    ```
 
 2. **Cài dependencies**
@@ -119,7 +119,7 @@ reading_history(id, story_id, chapter_id, read_at)
    ```
 
 3. **Cấu hình Firebase**
-   - Tạo file `.env` với các key Firebase (xem `firebase_options.dart`)
+   - Tạo file `.env` với các key Firebase (xem `lib/firebase_options.dart`)
    - Đảm bảo `google-services.json` trong `android/app/`
 
 4. **Chạy ứng dụng**
@@ -180,5 +180,5 @@ reading_history(id, story_id, chapter_id, read_at)
 ## 📄 License
 
 - Dự án này phát triển nhằm mục đích nghiên cứu và học tập về Flutter và Firebase.
-- Nếu như có ai đó muốn sử dụng thì xin vui lòng ghi rõ nguồn. Xin cảm ơn.
-- Nguyễn Văn Hưởng
+- Nếu như có ai đó lấy mã nguồn và sử dụng thì xin vui lòng ghi rõ nguồn. Xin cảm ơn.
+- Nguyễn Văn Hưởng - 2026

@@ -144,7 +144,7 @@ class StoryCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '$chapterCount chương',
+                            'Chương ${chapterCount}',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(
                                   color: Theme.of(context).colorScheme.primary,

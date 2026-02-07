@@ -332,10 +332,10 @@ class _OTruyenHomeScreenState extends State<OTruyenHomeScreen>
                     if (story.chaptersLatest != null &&
                         story.chaptersLatest!.isNotEmpty)
                       Text(
-                        'Chương ${story.chaptersLatest!.first}',
+                        'Chương ${story.chaptersLatest!.last}',
                         style: TextStyle(
                           fontSize: 11,
-                          color: const Color.fromARGB(255, 160, 6, 127),
+                          color: const Color.fromARGB(255, 255, 114, 222),
                         ),
                       ),
                   ],

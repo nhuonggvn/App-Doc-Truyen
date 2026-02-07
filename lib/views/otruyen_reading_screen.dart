@@ -1,11 +1,12 @@
 // lib/views/otruyen_reading_screen.dart
 // Màn hình đọc chương truyện từ OTruyen API (hiển thị ảnh)
 
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../models/otruyen_models.dart';
 import '../services/otruyen_api_service.dart';
+import '../services/image_database_service.dart';
 
 class OTruyenReadingScreen extends StatefulWidget {
   final String chapterApiData;
@@ -67,9 +68,33 @@ class _OTruyenReadingScreenState extends State<OTruyenReadingScreen> {
     });
 
     try {
+      // Kiểm tra cache trước
+      final cachedData = ImageDatabaseService.getChapterContent(
+        _currentChapterApiData,
+      );
+      if (cachedData != null) {
+        // Load từ cache
+        final content = _parseChapterFromCache(cachedData);
+        if (mounted) {
+          setState(() {
+            _chapterContent = content;
+            _isLoading = false;
+          });
+          if (_scrollController.hasClients) {
+            _scrollController.jumpTo(0);
+          }
+        }
+        return;
+      }
+
+      // Không có cache, fetch từ API
       final content = await _apiService.getChapterContent(
         _currentChapterApiData,
       );
+
+      // Lưu vào cache cho offline
+      _saveChapterToCache(_currentChapterApiData, content);
+
       if (mounted) {
         setState(() {
           _chapterContent = content;
@@ -88,6 +113,48 @@ class _OTruyenReadingScreenState extends State<OTruyenReadingScreen> {
         });
       }
     }
+  }
+
+  /// Lưu chapter content vào database
+  void _saveChapterToCache(
+    String chapterApiData,
+    OTruyenChapterContent content,
+  ) {
+    final data = {
+      'chapterName': content.chapterName,
+      'chapterTitle': content.chapterTitle,
+      'chapterPath': content.chapterPath,
+      'pages': content.pages
+          .map(
+            (p) => {
+              'filename': p.filename,
+              'page': p.page,
+              'imageUrl': p.imageUrl,
+            },
+          )
+          .toList(),
+    };
+    ImageDatabaseService.saveChapterContent(chapterApiData, data);
+  }
+
+  /// Parse chapter content từ cache
+  OTruyenChapterContent _parseChapterFromCache(Map<String, dynamic> data) {
+    final pages = (data['pages'] as List)
+        .map(
+          (p) => OTruyenPageImage(
+            filename: p['filename'] ?? '',
+            page: p['page'] ?? 0,
+            imageUrl: p['imageUrl'] ?? '',
+          ),
+        )
+        .toList();
+
+    return OTruyenChapterContent(
+      chapterName: data['chapterName'] ?? '',
+      chapterTitle: data['chapterTitle'] ?? '',
+      chapterPath: data['chapterPath'] ?? '',
+      pages: pages,
+    );
   }
 
   // "Về trước" = quay lại chapter trước = lower index
@@ -385,34 +452,7 @@ class _OTruyenReadingScreenState extends State<OTruyenReadingScreen> {
       itemCount: pages.length,
       itemBuilder: (context, index) {
         final page = pages[index];
-        return CachedNetworkImage(
-          imageUrl: page.imageUrl,
-          fit: BoxFit.fitWidth,
-          placeholder: (context, url) => Container(
-            height: 200,
-            color: Colors.grey[900],
-            child: const Center(
-              child: CircularProgressIndicator(color: Colors.white),
-            ),
-          ),
-          errorWidget: (context, url, error) => Container(
-            height: 200,
-            color: Colors.grey[900],
-            child: const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.broken_image, size: 48, color: Colors.white54),
-                  SizedBox(height: 8),
-                  Text(
-                    'Không tải được ảnh',
-                    style: TextStyle(color: Colors.white54),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
+        return _DatabaseImage(imageUrl: page.imageUrl, fit: BoxFit.fitWidth);
       },
     );
   }
@@ -469,6 +509,112 @@ class _OTruyenReadingScreenState extends State<OTruyenReadingScreen> {
             _loadChapter();
           }
         },
+      ),
+    );
+  }
+}
+
+/// Widget hiển thị ảnh từ database (Hive)
+/// Load từ database nếu có, otherwise download và lưu
+class _DatabaseImage extends StatefulWidget {
+  final String imageUrl;
+  final BoxFit fit;
+
+  const _DatabaseImage({required this.imageUrl, this.fit = BoxFit.fitWidth});
+
+  @override
+  State<_DatabaseImage> createState() => _DatabaseImageState();
+}
+
+class _DatabaseImageState extends State<_DatabaseImage> {
+  Uint8List? _imageBytes;
+  bool _isLoading = true;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImage();
+  }
+
+  @override
+  void didUpdateWidget(_DatabaseImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl) {
+      _loadImage();
+    }
+  }
+
+  Future<void> _loadImage() async {
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+    });
+
+    // Kiểm tra trong database trước
+    final cachedBytes = ImageDatabaseService.getImage(widget.imageUrl);
+    if (cachedBytes != null) {
+      setState(() {
+        _imageBytes = cachedBytes;
+        _isLoading = false;
+      });
+      return;
+    }
+
+    // Download và lưu vào database
+    final bytes = await ImageDatabaseService.downloadAndSaveImage(
+      widget.imageUrl,
+    );
+    if (mounted) {
+      setState(() {
+        _imageBytes = bytes;
+        _isLoading = false;
+        _hasError = bytes == null;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Container(
+        height: 200,
+        color: Colors.grey[900],
+        child: const Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
+
+    if (_hasError || _imageBytes == null) {
+      return Container(
+        height: 200,
+        color: Colors.grey[900],
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.broken_image, size: 48, color: Colors.white54),
+              SizedBox(height: 8),
+              Text(
+                'Không tải được ảnh',
+                style: TextStyle(color: Colors.white54),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Image.memory(
+      _imageBytes!,
+      fit: widget.fit,
+      errorBuilder: (context, error, stackTrace) => Container(
+        height: 200,
+        color: Colors.grey[900],
+        child: const Center(
+          child: Icon(Icons.broken_image, size: 48, color: Colors.white54),
+        ),
       ),
     );
   }
