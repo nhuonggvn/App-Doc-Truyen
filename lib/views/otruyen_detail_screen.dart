@@ -121,49 +121,66 @@ class _OTruyenDetailScreenState extends State<OTruyenDetailScreen> {
 
     return CustomScrollView(
       slivers: [
-        // App bar với ảnh bìa
+        // App bar đơn giản
         SliverAppBar(
-          expandedHeight: 300,
           pinned: true,
+          expandedHeight: 280,
           flexibleSpace: FlexibleSpaceBar(
-            title: Text(
-              story.name,
-              style: const TextStyle(
-                shadows: [Shadow(blurRadius: 4, color: Colors.black54)],
-              ),
-            ),
             background: Stack(
               fit: StackFit.expand,
               children: [
+                // Ảnh bìa hoặc gradient placeholder
                 if (thumbUrl.isNotEmpty)
                   Image.network(
                     thumbUrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(
-                      color: Colors.grey[800],
-                      child: const Icon(
-                        Icons.book,
+                    errorBuilder: (_, __, ___) => Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Theme.of(context).colorScheme.primary,
+                            Theme.of(context).colorScheme.tertiary,
+                          ],
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.menu_book,
                         size: 80,
-                        color: Colors.white54,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onPrimary.withAlpha(128),
                       ),
                     ),
                   )
                 else
                   Container(
-                    color: Colors.grey[800],
-                    child: const Icon(
-                      Icons.book,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Theme.of(context).colorScheme.primary,
+                          Theme.of(context).colorScheme.tertiary,
+                        ],
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.menu_book,
                       size: 80,
-                      color: Colors.white54,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onPrimary.withAlpha(128),
                     ),
                   ),
-                // Gradient overlay
+                // Gradient overlay phía dưới
                 Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [Colors.transparent, Colors.black.withAlpha(179)],
+                      colors: [Colors.transparent, Colors.black.withAlpha(120)],
                     ),
                   ),
                 ),
@@ -172,54 +189,125 @@ class _OTruyenDetailScreenState extends State<OTruyenDetailScreen> {
           ),
         ),
 
-        // Thông tin truyện
+        // Thông tin truyện bên dưới
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Tên truyện
+                Text(
+                  story.name,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
                 // Tác giả
                 if (story.author != null && story.author!.isNotEmpty)
                   Row(
                     children: [
-                      const Icon(Icons.person, size: 18, color: Colors.grey),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Tác giả: ${story.author}',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ],
-                  ),
-                const SizedBox(height: 8),
-
-                // Trạng thái
-                if (story.status != null && story.status!.isNotEmpty)
-                  Row(
-                    children: [
                       Icon(
-                        story.status == 'completed'
-                            ? Icons.check_circle
-                            : Icons.update,
-                        size: 18,
-                        color: story.status == 'completed'
-                            ? Colors.green
-                            : Colors.orange,
+                        Icons.person,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Text(
-                        story.status == 'completed'
-                            ? 'Hoàn thành'
-                            : 'Đang cập nhật',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: story.status == 'completed'
-                              ? Colors.green
-                              : Colors.orange,
+                        story.author!,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
+                const SizedBox(height: 12),
+
+                // Trạng thái + Số chương
+                Row(
+                  children: [
+                    if (story.status != null && story.status!.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              (story.status == 'completed'
+                                      ? Colors.green
+                                      : Colors.orange)
+                                  .withAlpha(30),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: story.status == 'completed'
+                                ? Colors.green
+                                : Colors.orange,
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              story.status == 'completed'
+                                  ? Icons.check_circle
+                                  : Icons.update,
+                              size: 14,
+                              color: story.status == 'completed'
+                                  ? Colors.green
+                                  : Colors.orange,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              story.status == 'completed'
+                                  ? 'Hoàn thành'
+                                  : 'Đang cập nhật',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: story.status == 'completed'
+                                    ? Colors.green
+                                    : Colors.orange,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer.withAlpha(80),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.menu_book,
+                            size: 14,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${story.chapters.length} chương',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
 
                 // Thể loại
@@ -245,46 +333,81 @@ class _OTruyenDetailScreenState extends State<OTruyenDetailScreen> {
 
                 // Mô tả
                 if (story.content != null && story.content!.isNotEmpty) ...[
-                  const Text(
-                    'Nội dung',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _stripHtml(story.content!),
-                    style: const TextStyle(height: 1.5),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest.withAlpha(80),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 18,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Giới thiệu',
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _stripHtml(story.content!),
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodyMedium?.copyWith(height: 1.5),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+
+                // Nút đọc từ đầu
+                if (story.chapters.isNotEmpty)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.play_arrow),
+                          label: const Text('Đọc từ đầu'),
+                          onPressed: () =>
+                              _openChapter(story.chapters.first, 0),
+                        ),
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 16),
 
                 // Danh sách chương
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    Icon(
+                      Icons.list,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
                     Text(
                       'Danh sách chương (${story.chapters.length})',
-                      style: const TextStyle(
-                        fontSize: 18,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    if (story.chapters.isNotEmpty)
-                      TextButton.icon(
-                        icon: const Icon(Icons.play_arrow, size: 20),
-                        // Chỉnh đỡ bị lỗi overflow ;(
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        label: const Text('Đọc từ đầu'),
-                        onPressed: () => _openChapter(story.chapters.first, 0),
-                      ),
                   ],
                 ),
                 const SizedBox(height: 8),
 
-                // Container danh sách chương với scroll riêng
+                // Container danh sách chương
                 if (story.chapters.isEmpty)
                   Container(
                     height: 100,
@@ -293,16 +416,15 @@ class _OTruyenDetailScreenState extends State<OTruyenDetailScreen> {
                   )
                 else
                   Container(
-                    height: 400, // Chiều cao cố định
+                    height: 400,
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
+                      border: Border.all(color: Theme.of(context).dividerColor),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    // Cuộn danh sách chương
                     child: ListView.builder(
+                      padding: EdgeInsets.zero,
                       itemCount: story.chapters.length,
                       itemBuilder: (context, index) {
-                        // Chương mới nhất lên đầu
                         final reversedIndex = story.chapters.length - 1 - index;
                         final chapter = story.chapters[reversedIndex];
                         return ListTile(
@@ -316,6 +438,7 @@ class _OTruyenDetailScreenState extends State<OTruyenDetailScreen> {
                               style: const TextStyle(fontSize: 10),
                             ),
                           ),
+
                           title: Text(
                             chapter.displayName,
                             maxLines: 1,

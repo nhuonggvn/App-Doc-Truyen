@@ -333,6 +333,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: ListView.builder(
+                        padding: EdgeInsets.zero,
                         itemCount: chapters.length,
                         itemBuilder: (context, index) {
                           final chapter = chapters[index];

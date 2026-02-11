@@ -183,7 +183,6 @@ class _OTruyenHomeScreenState extends State<OTruyenHomeScreen>
       appBar: AppBar(
         toolbarHeight: 25,
         title: const Text('Truyện Online'),
-        backgroundColor: const Color.fromARGB(255, 254, 244, 252),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -432,7 +431,7 @@ class _OTruyenHomeScreenState extends State<OTruyenHomeScreen>
     if (_pagination == null) return const SizedBox.shrink();
 
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(1),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border(top: BorderSide(color: Colors.grey[300]!)),
