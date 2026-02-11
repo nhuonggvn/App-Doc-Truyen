@@ -289,44 +289,60 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
             ),
           ),
 
-          // Danh sách chapters
-          if (chapters.isEmpty)
-            SliverToBoxAdapter(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.library_books_outlined,
-                        size: 64,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Chưa có chương nào',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          // Danh sách chapters trong container scroll riêng
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: chapters.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.library_books_outlined,
+                              size: 64,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Chưa có chương nào',
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                            ElevatedButton.icon(
+                              onPressed: () => _addNewChapter(),
+                              icon: const Icon(Icons.add),
+                              label: const Text('Thêm chương đầu tiên'),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        onPressed: () => _addNewChapter(),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Thêm chương đầu tiên'),
+                    )
+                  : Container(
+                      height: 400, // Chiều cao cố định
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          else
-            SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final chapter = chapters[index];
-                return _buildChapterTile(chapter, index);
-              }, childCount: chapters.length),
+                      child: ListView.builder(
+                        padding: EdgeInsets.zero,
+                        itemCount: chapters.length,
+                        itemBuilder: (context, index) {
+                          final chapter = chapters[index];
+                          return _buildChapterTile(chapter, index);
+                        },
+                      ),
+                    ),
             ),
+          ),
 
           // Section bình luận
           SliverToBoxAdapter(
