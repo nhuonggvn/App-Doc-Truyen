@@ -46,3 +46,11 @@ app.*.map.json
 
 # Environment variables - KHÔNG COMMIT FILE NÀY
 .env
+
+# Mac
+.DS_Store
+.dart_tool/
+.packages
+.pub-cache/
+build/
+ios/Flutter/Generated.xcconfig
