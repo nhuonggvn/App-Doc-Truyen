@@ -44,5 +44,8 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Environment variables - KHÔNG COMMIT FILE NÀY
 .env
+OTRUYEN_API_GUIDE.md
+PROJECT_STRUCTURE.md
+Cau_hinh_database_day_du_lieu.txt
+Tinh-nang-doc-truyen-phase-01.txt   
