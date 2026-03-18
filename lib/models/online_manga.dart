@@ -9,6 +9,7 @@ class OnlineManga {
   final String? image; // URL ảnh bìa từ server
   final String? status; // Trạng thái: Đang tiến hành, Hoàn thành, ...
   final DateTime? updatedAt; // Thời gian cập nhật gần nhất
+  final int chapterCount; // Số lượng chương
 
   OnlineManga({
     required this.id,
@@ -17,10 +18,19 @@ class OnlineManga {
     this.image,
     this.status,
     this.updatedAt,
+    this.chapterCount = 0,
   });
 
   /// Tạo OnlineManga từ JSON trả về bởi API
   factory OnlineManga.fromJson(Map<String, dynamic> json) {
+    // Lấy số chương từ API nếu có, nếu không thì đếm từ chapters list
+    int chaptersCount = 0;
+    if (json['chapterCount'] != null) {
+      chaptersCount = int.tryParse(json['chapterCount'].toString()) ?? 0;
+    } else if (json['chapters'] != null && json['chapters'] is List) {
+      chaptersCount = (json['chapters'] as List).length;
+    }
+
     return OnlineManga(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
       slug: json['slug']?.toString() ?? '',
@@ -30,6 +40,7 @@ class OnlineManga {
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'].toString())
           : null,
+      chapterCount: chaptersCount,
     );
   }
 
