@@ -45,6 +45,7 @@ app.*.map.json
 /android/app/release
 
 .env
+AGENTS.md
 OTRUYEN_API_GUIDE.md
 PROJECT_STRUCTURE.md
 Cau_hinh_database_day_du_lieu.txt
