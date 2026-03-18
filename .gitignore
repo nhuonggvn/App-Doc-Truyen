@@ -46,6 +46,7 @@ app.*.map.json
 
 # Environment variables - KHÔNG COMMIT FILE NÀY
 .env
+AGENTS.md
 Cau_hinh_database_day_du_lieu.txt
 OTRUYEN_API_GUIDE.md
 PROJECT_STRUCTURE.md
