@@ -1,84 +1,92 @@
 # 📖 Flutter App Đọc Truyện
 
-Ứng dụng đọc truyện tranh (images) được xây dựng bằng Flutter với Firebase Authentication và SQLite database.
+Ứng dụng đọc truyện tranh (images) được xây dựng bằng Flutter với Firebase Authentication, SQLite database và tích hợp API đọc truyện online.
 
 ---
 
 ## 🚀 Tính năng chính
 
-- 🔐 **Đăng nhập/Đăng ký** với Firebase Auth
-- 📚 **Quản lý truyện**: Thêm, sửa, xóa truyện
-- 📑 **Quản lý chương**: Thêm chương với nhiều ảnh
-- 📖 **Đọc truyện**: Xem chương với điều hướng mượt mà
-- ❤️ **Yêu thích**: Lưu truyện yêu thích
-- 📜 **Lịch sử đọc**: Theo dõi chương đã đọc
-- 💬 **Bình luận**: Bình luận trên từng truyện
-- 🌙 **Dark mode**: Chế độ sáng/tối
-- 👤 **Hồ sơ**: Đổi avatar và tên hiển thị
+- 🔐 **Đăng nhập/Đăng ký**: Xác thực với Firebase Auth.
+- 📚 **Quản lý truyện nội bộ**: Thêm, sửa, xóa truyện cá nhân (lưu SQLite).
+- 📑 **Quản lý chương**: Thêm chương với nhiều ảnh cho truyện nội bộ.
+- 🌐 **Đọc truyện Online**: Kết nối với API bên ngoài để xem hàng ngàn truyện mới nhất.
+- 📖 **Trải nghiệm đọc mượt mà**: Hỗ trợ đọc offline bằng cách cache ảnh vào Hive database.
+- ❤️ **Yêu thích**: Lưu truyện yêu thích để theo dõi.
+- 📜 **Lịch sử đọc**: Theo dõi các chương đã đọc (cả nội bộ và online).
+- 💬 **Bình luận**: Gửi và xem bình luận trên từng truyện.
+- 🌙 **Giao diện đa dạng**: Chế độ sáng/tối với hiệu ứng gradient hiện đại.
+- 👤 **Hồ sơ cá nhân**: Quản lý thông tin người dùng, đổi avatar.
 
 ---
-```
 
+## 📂 Cấu trúc thư mục
+
+```
 lib/
-├── main.dart                              # Entry point, khởi tạo providers
-├── firebase_options.dart                  # Cấu hình Firebase
+├── main.dart                              # Nơi bắt đầu ứng dụng, khởi tạo Hive & Firebase
+├── firebase_options.dart                  # Cấu hình Firebase tự động
 │
-├── models/                                # Data models
-│   ├── story.dart                         # Model truyện
-│   ├── chapter.dart                       # Model chương + ChapterImage
+├── models/                                # Các lớp dữ liệu
+│   ├── story.dart                         # Model truyện nội bộ
+│   ├── chapter.dart                       # Model chương nội bộ
 │   ├── comment.dart                       # Model bình luận
-│   └── reading_history.dart               # Model lịch sử đọc
+│   ├── reading_history.dart               # Model lịch sử đọc
+│   └── otruyen_models.dart                # Model dữ liệu từ API Online
 │
-├── services/                              # Business logic & data access
-│   ├── database_helper.dart               # SQLite CRUD operations
-│   └── firebase_service.dart              # Firebase services
+├── services/                              # Xử lý logic và API
+│   ├── database_helper.dart               # SQLite CRUD (truyện nội bộ)
+│   ├── firebase_service.dart              # Dịch vụ Firebase Auth & Store
+│   ├── otruyen_api_service.dart           # Lấy dữ liệu từ API truyện online
+│   └── image_database_service.dart        # Cache ảnh và nội dung vào Hive
 │
-├── viewmodels/                            # State management (Provider)
-│   ├── auth_provider.dart                 # Xử lý đăng nhập/đăng ký
-│   ├── story_provider.dart                # Quản lý truyện, chapters, comments
-│   └── theme_provider.dart                # Quản lý theme sáng/tối
+├── viewmodels/                            # Quản lý trạng thái (Provider)
+│   ├── auth_provider.dart                 # Xử lý xác thực người dùng
+│   ├── story_provider.dart                # Logic nghiệp vụ về truyện & chương
+│   └── theme_provider.dart                # Quản lý giao diện sáng/tối
 │
-└── views/                                 # UI screens
-    ├── main_navigation.dart               # Bottom navigation chính
-    ├── auth_screen.dart                   # Màn hình đăng nhập/đăng ký
-    ├── home_screen.dart                   # Trang chủ, danh sách truyện
-    ├── my_stories_screen.dart             # Quản lý truyện của tôi
-    ├── story_form_screen.dart             # Form thêm/sửa truyện
-    ├── story_detail_screen.dart           # Chi tiết truyện, danh sách chương
-    ├── chapter_form_screen.dart           # Form thêm chương mới
-    ├── chapter_edit_screen.dart           # Sửa chương đã có
-    ├── chapter_reading_screen.dart        # Màn hình đọc truyện
-    ├── reading_history_screen.dart        # Lịch sử đọc
-    ├── profile_screen.dart                # Hồ sơ người dùng
-    └── widgets/                           # Reusable widgets
-        └── story_card.dart                # Card hiển thị truyện
+└── views/                                 # Giao diện người dùng
+    ├── main_navigation.dart               # Điều hướng Bottom Navigation
+    ├── auth_screen.dart                   # Đăng nhập & Đăng ký
+    ├── home_screen.dart                   # Danh sách truyện nội bộ
+    ├── otruyen_home_screen.dart           # Trang chủ truyện Online
+    ├── otruyen_detail_screen.dart         # Chi tiết truyện Online
+    ├── otruyen_reading_screen.dart        # Màn hình đọc truyện Online
+    ├── my_stories_screen.dart             # Quản lý truyện cá nhân
+    ├── story_detail_screen.dart           # Chi tiết truyện nội bộ
+    ├── story_form_screen.dart             # Form thêm/sửa truyện nội bộ
+    ├── chapter_form_screen.dart           # Thêm chương mới
+    ├── chapter_reading_screen.dart        # Màn hình đọc truyện nội bộ
+    ├── reading_history_screen.dart        # Lịch sử đã đọc
+    ├── profile_screen.dart                # Thông tin cá nhân
+    └── widgets/                           # Các thành phần giao diện dùng chung
+        └── story_card.dart                # Card hiển thị thông tin truyện
 ```
----
 
+---
 
 ## 🏗️ Kiến trúc
 
-Ứng dụng sử dụng mô hình **MVVM** (Model-View-ViewModel):
+Ứng dụng tuân thủ mô hình **MVVM** (Model-View-ViewModel) đảm bảo tách biệt logic và giao diện:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                         VIEWS                               │
-│  (auth_screen, home_screen, story_detail_screen, ...)       │
+│  (UI Screens: Home, Detail, Reading, Profile, ...)          │
 └─────────────────────────┬───────────────────────────────────┘
-                          │ Provider.of<>
+                          │ Provider.of<T> / Consumer<T>
 ┌─────────────────────────▼───────────────────────────────────┐
 │                      VIEWMODELS                             │
-│  (auth_provider, story_provider, theme_provider)            │
+│  (State Management: Auth, Story, Theme Providers)           │
 └─────────────────────────┬───────────────────────────────────┘
-                          │
+                          │ Gọi Services
 ┌─────────────────────────▼───────────────────────────────────┐
 │                       SERVICES                              │
-│  (database_helper, firebase_service)                        │
+│  (Data Access: SQLite, Firebase, OTRUYEN API, Hive)         │
 └─────────────────────────┬───────────────────────────────────┘
-                          │
+                          │ Đi đến
 ┌─────────────────────────▼───────────────────────────────────┐
 │                        MODELS                               │
-│  (Story, Chapter, Comment, ReadingHistory)                  │
+│  (Data Classes: Story, Chapter, OTruyen, Comment, ...)      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -105,42 +113,31 @@ reading_history(id, story_id, chapter_id, read_at)
 
 ---
 
-## 🛠️ Cài đặt
+## 🛠️ Cài đặt & Sửa lỗi
 
-1. **Clone project**
+1. **Clone dự án**
    ```bash
    git clone https://github.com/nhuonggvn/App-Doc-Truyen.git
    cd App-Doc-Truyen
    ```
 
-2. **Cài dependencies**
+2. **Cài đặt thư viện**
    ```bash
    flutter pub get
    ```
 
-3. **Cấu hình Firebase** ⚠️ **BẮT BUỘC**
-   
-   > **Lưu ý:** Bạn cần tạo Firebase project riêng và lấy API key của bạn.
-   > File `.env` không được đẩy lên GitHub vì chứa thông tin bí mật.
-
-   **Bước 1:** Tạo project trên [Firebase Console](https://console.firebase.google.com/)
-   
-   **Bước 2:** Bật Authentication → Email/Password
-   
-   **Bước 3:** Tải `google-services.json` và đặt vào `android/app/`
-   
-   **Bước 4:** Tạo file `.env` trong thư mục gốc với nội dung:
+3. **Thiết lập biến môi trường (.env)**
+   Tạo file `.env` tại thư mục gốc và cung cấp các thông tin từ Firebase:
    ```env
-   FIREBASE_API_KEY=your_api_key_here
-   FIREBASE_APP_ID=your_app_id_here
-   FIREBASE_MESSAGING_SENDER_ID=your_sender_id_here
-   FIREBASE_PROJECT_ID=your_project_id_here
-   FIREBASE_STORAGE_BUCKET=your_storage_bucket_here
+   FIREBASE_API_KEY=xxx
+   FIREBASE_APP_ID=xxx
+   ...
    ```
-   
-   > Lấy các giá trị này từ Firebase Console → Project Settings → Your apps
 
-4. **Chạy ứng dụng**
+4. **Cấu hình Firebase cho Android/iOS**
+   Đảm bảo bạn đã đặt file `google-services.json` (Android) hoặc `GoogleService-Info.plist` (iOS) vào đúng vị trí theo tài liệu Firebase.
+
+5. **Chạy ứng dụng**
    ```bash
    flutter run
    ```
@@ -151,14 +148,14 @@ reading_history(id, story_id, chapter_id, read_at)
 
 | Package | Mục đích |
 |---------|----------|
-| `provider` | State management |
-| `sqflite` | SQLite database |
-| `firebase_auth` | Authentication |
-| `firebase_core` | Firebase core |
-| `image_picker` | Chọn ảnh từ gallery |
-| `shared_preferences` | Lưu settings local |
-| `path_provider` | Đường dẫn file system |
-| `intl` | Format ngày tháng |
+| `provider` | Quản lý trạng thái ứng dụng |
+| `sqflite` | Database SQLite cho dữ liệu nội bộ |
+| `hive_flutter` | Database NoSQL để cache ảnh & dữ liệu API |
+| `firebase_auth` | Xác thực người dùng |
+| `http` | Gọi API lấy dữ liệu truyện online |
+| `cached_network_image` | Hiển thị và cache ảnh từ internet |
+| `flutter_dotenv` | Quản lý biến môi trường bảo mật |
+| `image_picker` | Chọn ảnh bìa từ thư viện máy |
 
 ---
 
@@ -197,6 +194,6 @@ reading_history(id, story_id, chapter_id, read_at)
 
 ## 📄 License
 
-- Dự án này phát triển nhằm mục đích nghiên cứu và học tập về Flutter và Firebase.
-- Nếu như có ai đó lấy mã nguồn và sử dụng thì xin vui lòng ghi rõ nguồn. Xin cảm ơn.
-- Nguyễn Văn Hưởng - 2026
+- Dự án được phát triển bởi **Nguyễn Văn Hưởng** dành cho mục đích học tập và nghiên cứu Flutter.
+- Vui lòng ghi rõ nguồn nếu bạn sử dụng mã nguồn này.
+- **Hà Nội, 2026.**
