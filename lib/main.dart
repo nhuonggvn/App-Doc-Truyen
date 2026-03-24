@@ -11,7 +11,6 @@ import 'firebase_options.dart';
 import 'viewmodels/auth_provider.dart';
 import 'viewmodels/story_provider.dart';
 import 'viewmodels/theme_provider.dart';
-import 'viewmodels/online_manga_provider.dart';
 import 'views/auth_screen.dart';
 import 'views/main_navigation.dart';
 import 'services/image_database_service.dart';
@@ -43,8 +42,6 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         // Provider truyện local SQLite
         ChangeNotifierProvider(create: (_) => StoryProvider()),
-        // Provider truyện online (API)
-        ChangeNotifierProvider(create: (_) => OnlineMangaProvider()),
         // Provider giao diện
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],

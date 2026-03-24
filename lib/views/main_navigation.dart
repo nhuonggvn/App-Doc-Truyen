@@ -3,7 +3,6 @@
 
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
-import 'online_screen.dart';
 import 'my_stories_screen.dart';
 import 'reading_history_screen.dart';
 import 'profile_screen.dart';
@@ -21,7 +20,6 @@ class _MainNavigationState extends State<MainNavigation> {
   // Danh sách 5 màn hình: Trang chủ, Online, Truyện của tôi, Lịch sử, Hồ sơ
   final List<Widget> _screens = const [
     HomeScreen(),
-    OnlineScreen(),
     MyStoriesScreen(),
     ReadingHistoryScreen(),
     ProfileScreen(),
@@ -45,25 +43,19 @@ class _MainNavigationState extends State<MainNavigation> {
             selectedIcon: Icon(Icons.home),
             label: 'Trang chủ',
           ),
-          // Tab 2: Truyện Online (từ API)
-          NavigationDestination(
-            icon: Icon(Icons.cloud_outlined),
-            selectedIcon: Icon(Icons.cloud),
-            label: 'Online',
-          ),
-          // Tab 3: Truyện của tôi
+          // Tab 2: Truyện của tôi
           NavigationDestination(
             icon: Icon(Icons.edit_note_outlined),
             selectedIcon: Icon(Icons.edit_note),
             label: 'Truyện của tôi',
           ),
-          // Tab 4: Lịch sử đọc
+          // Tab 3: Lịch sử đọc
           NavigationDestination(
             icon: Icon(Icons.history_outlined),
             selectedIcon: Icon(Icons.history),
             label: 'Lịch sử',
           ),
-          // Tab 5: Hồ sơ cá nhân
+          // Tab 4: Hồ sơ cá nhân
           NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
