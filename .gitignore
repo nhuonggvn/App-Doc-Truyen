@@ -44,7 +44,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Environment variables - KHÔNG COMMIT FILE NÀY
 .env
 
 # Mac
@@ -54,3 +53,8 @@ app.*.map.json
 .pub-cache/
 build/
 ios/Flutter/Generated.xcconfig
+AGENTS.md
+OTRUYEN_API_GUIDE.md
+PROJECT_STRUCTURE.md
+Cau_hinh_database_day_du_lieu.txt
+Tinh-nang-doc-truyen-phase-01.txt   

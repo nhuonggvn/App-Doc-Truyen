@@ -34,6 +34,16 @@ dependencies:
   # Image handling
   image_picker: ^1.1.2
   path_provider: ^2.1.5
+  
+  # HTTP Client
+  http: ^1.2.0
+  
+  # Image Caching
+  cached_network_image: ^3.3.1
+  
+  # Database for persistent image storage
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
 
 dev_dependencies:
   flutter_test:
