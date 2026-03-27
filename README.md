@@ -1,6 +1,6 @@
 # 📖 Flutter App Đọc Truyện
 
-Ứng dụng đọc truyện tranh (manga) được xây dựng bằng Flutter với Firebase Authentication và SQLite database.
+Ứng dụng đọc truyện tranh (images) được xây dựng bằng Flutter với Firebase Authentication và SQLite database.
 
 ---
 
@@ -62,22 +62,22 @@ lib/
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         VIEWS                                │
+│                         VIEWS                               │
 │  (auth_screen, home_screen, story_detail_screen, ...)       │
 └─────────────────────────┬───────────────────────────────────┘
                           │ Provider.of<>
 ┌─────────────────────────▼───────────────────────────────────┐
-│                      VIEWMODELS                              │
+│                      VIEWMODELS                             │
 │  (auth_provider, story_provider, theme_provider)            │
 └─────────────────────────┬───────────────────────────────────┘
                           │
 ┌─────────────────────────▼───────────────────────────────────┐
-│                       SERVICES                               │
+│                       SERVICES                              │
 │  (database_helper, firebase_service)                        │
 └─────────────────────────┬───────────────────────────────────┘
                           │
 ┌─────────────────────────▼───────────────────────────────────┐
-│                        MODELS                                │
+│                        MODELS                               │
 │  (Story, Chapter, Comment, ReadingHistory)                  │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -109,8 +109,8 @@ reading_history(id, story_id, chapter_id, read_at)
 
 1. **Clone project**
    ```bash
-   git clone https://github.com/nhuongg/App-Doc-Truyen.git
-   cd flutter_app_doctruyen
+   git clone https://github.com/nhuonggvn/App-Doc-Truyen.git
+   cd App-Doc-Truyen
    ```
 
 2. **Cài dependencies**
@@ -118,9 +118,27 @@ reading_history(id, story_id, chapter_id, read_at)
    flutter pub get
    ```
 
-3. **Cấu hình Firebase**
-   - Tạo file `.env` với các key Firebase (xem `firebase_options.dart`)
-   - Đảm bảo `google-services.json` trong `android/app/`
+3. **Cấu hình Firebase** ⚠️ **BẮT BUỘC**
+   
+   > **Lưu ý:** Bạn cần tạo Firebase project riêng và lấy API key của bạn.
+   > File `.env` không được đẩy lên GitHub vì chứa thông tin bí mật.
+
+   **Bước 1:** Tạo project trên [Firebase Console](https://console.firebase.google.com/)
+   
+   **Bước 2:** Bật Authentication → Email/Password
+   
+   **Bước 3:** Tải `google-services.json` và đặt vào `android/app/`
+   
+   **Bước 4:** Tạo file `.env` trong thư mục gốc với nội dung:
+   ```env
+   FIREBASE_API_KEY=your_api_key_here
+   FIREBASE_APP_ID=your_app_id_here
+   FIREBASE_MESSAGING_SENDER_ID=your_sender_id_here
+   FIREBASE_PROJECT_ID=your_project_id_here
+   FIREBASE_STORAGE_BUCKET=your_storage_bucket_here
+   ```
+   
+   > Lấy các giá trị này từ Firebase Console → Project Settings → Your apps
 
 4. **Chạy ứng dụng**
    ```bash
@@ -148,35 +166,37 @@ reading_history(id, story_id, chapter_id, read_at)
 
 ### Giao diện sáng
 <p>
-<img src="Pictures\Screenshot_1.jpg" width="200"/>
-<img src="Pictures\Screenshot_2.jpg" width="200"/>
-<img src="Pictures\Screenshot_3.jpg" width="200"/>
-<img src="Pictures\Screenshot_4.jpg" width="200"/>
-<img src="Pictures\Screenshot_5.jpg" width="200"/>
-<img src="Pictures\Screenshot_6.jpg" width="200"/>
-<img src="Pictures\Screenshot_7.jpg" width="200"/>
-<img src="Pictures\Screenshot_8.jpg" width="200"/>
-<img src="Pictures\Screenshot_9.jpg" width="200"/>
-<img src="Pictures\Screenshot_10.jpg" width="200"/>
-<img src="Pictures\Screenshot_11.jpg" width="200"/>
-<img src="Pictures\Screenshot_12.jpg" width="200"/>
+<img src="Pictures/Screenshot_1.jpg" width="200"/>
+<img src="Pictures/Screenshot_2.jpg" width="200"/>
+<img src="Pictures/Screenshot_3.jpg" width="200"/>
+<img src="Pictures/Screenshot_4.jpg" width="200"/>
+<img src="Pictures/Screenshot_5.jpg" width="200"/>
+<img src="Pictures/Screenshot_6.jpg" width="200"/>
+<img src="Pictures/Screenshot_7.jpg" width="200"/>
+<img src="Pictures/Screenshot_8.jpg" width="200"/>
+<img src="Pictures/Screenshot_9.jpg" width="200"/>
+<img src="Pictures/Screenshot_10.jpg" width="200"/>
+<img src="Pictures/Screenshot_11.jpg" width="200"/>
+<img src="Pictures/Screenshot_12.jpg" width="200"/>
 </p>
 
 ### Giao diện tối
 <p>
-<img src="Pictures\Screenshot_1 (2).jpg" width="200"/>
-<img src="Pictures\Screenshot_2 (2).jpg" width="200"/>
-<img src="Pictures\Screenshot_3 (2).jpg" width="200"/>
-<img src="Pictures\Screenshot_4 (2).jpg" width="200"/>
-<img src="Pictures\Screenshot_5 (2).jpg" width="200"/>
-<img src="Pictures\Screenshot_6 (2).jpg" width="200"/>
-<img src="Pictures\Screenshot_7 (2).jpg" width="200"/>
-<img src="Pictures\Screenshot_8 (2).jpg" width="200"/>
-<img src="Pictures\Screenshot_9 (2).jpg" width="200"/>
+<img src="Pictures/Screenshot_1 (2).jpg" width="200"/>
+<img src="Pictures/Screenshot_2 (2).jpg" width="200"/>
+<img src="Pictures/Screenshot_3 (2).jpg" width="200"/>
+<img src="Pictures/Screenshot_4 (2).jpg" width="200"/>
+<img src="Pictures/Screenshot_5 (2).jpg" width="200"/>
+<img src="Pictures/Screenshot_6 (2).jpg" width="200"/>
+<img src="Pictures/Screenshot_7 (2).jpg" width="200"/>
+<img src="Pictures/Screenshot_8 (2).jpg" width="200"/>
+<img src="Pictures/Screenshot_9 (2).jpg" width="200"/>
 </p>
 
 ---
 
-## 📄 Nguyen Van Huong License
+## 📄 License
 
-
+- Dự án này phát triển nhằm mục đích nghiên cứu và học tập về Flutter và Firebase.
+- Nếu như có ai đó lấy mã nguồn và sử dụng thì xin vui lòng ghi rõ nguồn. Xin cảm ơn.
+- Nguyễn Văn Hưởng - 2026

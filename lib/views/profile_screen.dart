@@ -181,19 +181,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               )
                             : null,
                       ),
+                      // Nút chỉnh sửa avatar
                       Positioned(
                         bottom: 0,
                         right: 0,
                         child: Container(
                           padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.secondary,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF03DAC6), // Xanh ngọc cố định
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(
+                          child: const Icon(
                             Icons.camera_alt,
                             size: 18,
-                            color: Theme.of(context).colorScheme.onSecondary,
+                            color: Color(0xFF1F1F1F), // Tối cố định
                           ),
                         ),
                       ),

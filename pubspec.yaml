@@ -34,6 +34,11 @@ dependencies:
   # Image handling
   image_picker: ^1.1.2
   path_provider: ^2.1.5
+  
+  
+  # Database for persistent image storage
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
 
   # HTTP & Network Images (cho trang Online)
   http: ^1.2.2

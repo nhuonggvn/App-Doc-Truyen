@@ -1,6 +1,8 @@
 // lib/models/online_manga.dart
 // Model cho truyện tranh online - lấy dữ liệu từ API server
 
+import 'package:flutter/foundation.dart';
+
 /// Model đại diện cho một truyện trong danh sách (MangaItem từ API)
 class OnlineManga {
   final String id;
@@ -9,6 +11,7 @@ class OnlineManga {
   final String? image; // URL ảnh bìa từ server
   final String? status; // Trạng thái: Đang tiến hành, Hoàn thành, ...
   final DateTime? updatedAt; // Thời gian cập nhật gần nhất
+  final int chapterCount; // Số lượng chương
 
   OnlineManga({
     required this.id,
@@ -17,10 +20,30 @@ class OnlineManga {
     this.image,
     this.status,
     this.updatedAt,
+    this.chapterCount = 0,
   });
 
   /// Tạo OnlineManga từ JSON trả về bởi API
   factory OnlineManga.fromJson(Map<String, dynamic> json) {
+    // Lấy số chương từ API nếu có
+    int chaptersCount = 0;
+
+    // Thử nhiều tên field khác nhau
+    if (json['chapterCount'] != null) {
+      chaptersCount = int.tryParse(json['chapterCount'].toString()) ?? 0;
+    } else if (json['totalChapters'] != null) {
+      chaptersCount = int.tryParse(json['totalChapters'].toString()) ?? 0;
+    } else if (json['numChapters'] != null) {
+      chaptersCount = int.tryParse(json['numChapters'].toString()) ?? 0;
+    } else if (json['chapters'] != null && json['chapters'] is List) {
+      chaptersCount = (json['chapters'] as List).length;
+    }
+
+    // Debug log để kiểm tra dữ liệu từ API
+    debugPrint(
+      '📖 OnlineManga.fromJson - title: ${json['title']}, chapterCount: $chaptersCount, keys: ${json.keys.toList()}',
+    );
+
     return OnlineManga(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
       slug: json['slug']?.toString() ?? '',
@@ -30,6 +53,7 @@ class OnlineManga {
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'].toString())
           : null,
+      chapterCount: chaptersCount,
     );
   }
 
