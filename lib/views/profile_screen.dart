@@ -7,11 +7,13 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
+import '../models/app_user.dart';
 import '../viewmodels/auth_provider.dart';
 import '../viewmodels/story_provider.dart';
 import '../viewmodels/theme_provider.dart';
 import 'auth_screen.dart';
 import 'story_detail_screen.dart';
+import 'member/coin_wallet_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -225,14 +227,112 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  authProvider.user?.email ?? 'Thành viên',
+                  authProvider.currentUser?.email ?? 'Thành viên',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Badge hiển thị role
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _getRoleColor(
+                      authProvider.currentRole,
+                    ).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _getRoleColor(
+                        authProvider.currentRole,
+                      ).withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Text(
+                    '${authProvider.currentUser?.roleIcon ?? "🌐"} ${authProvider.currentUser?.roleLabel ?? "Khách"}',
+                    style: TextStyle(
+                      color: _getRoleColor(authProvider.currentRole),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
+
+          // Thẻ số xu (chỉ hiện cho Member đã đăng nhập)
+          if (authProvider.isAuthenticated)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: InkWell(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CoinWalletScreen()),
+                ),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF9800), Color(0xFFF44336)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.monetization_on,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Ví Xu của bạn',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              '${authProvider.coins} xu',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Nạp thêm',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Icon(
+                            Icons.arrow_forward_ios,
+                            color: Colors.white,
+                            size: 14,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
           const SizedBox(height: 8),
 
@@ -429,6 +529,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
+  }
+
+  /// Lấy màu tương ứng với role
+  Color _getRoleColor(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return Colors.amber.shade700;
+      case UserRole.editor:
+        return Colors.blue;
+      case UserRole.member:
+        return Colors.green;
+      case UserRole.guest:
+        return Colors.grey;
+    }
   }
 
   Widget _buildCoverImage(BuildContext context, String? coverImage) {

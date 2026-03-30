@@ -6,7 +6,9 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/online_manga.dart';
 import '../viewmodels/online_manga_provider.dart';
+import '../viewmodels/auth_provider.dart';
 import 'online_chapter_reading_screen.dart';
+import 'member/ad_reward_dialog.dart';
 
 /// Trang chi tiết một truyện online, hiển thị mô tả và danh sách chapter
 class OnlineMangaDetailScreen extends StatefulWidget {
@@ -312,6 +314,7 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
                     onPressed: () => _openChapter(
                       detail.chapters.last, // Chapter đầu tiên (cuối list)
                       detail.title,
+                      true, // Chap đầu luôn free
                     ),
                     icon: const Icon(Icons.play_arrow),
                     label: const Text('Đọc từ đầu'),
@@ -357,7 +360,18 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
         SliverList(
           delegate: SliverChildBuilderDelegate((context, index) {
             final chapter = detail.chapters[index];
-            return _buildChapterTile(chapter, index, detail.title);
+            // Giả lập logic: Danh sách chapter từ API xếp từ mới -> cũ.
+            // Nghĩa là index 0 là tập mới nhất. index càng lớn càng cũ.
+            // Ta cho 5 chương cũ nhất (tức index gần bằng chiều dài mảng) là miễn phí.
+            // Các chương còn lại (với chapter length > 5) là Premium.
+            final isFree = index >= detail.chapters.length - 5;
+            return _buildChapterTile(
+              chapter,
+              index,
+              detail.title,
+              detail.chapters.length,
+              isFree,
+            );
           }, childCount: detail.chapters.length),
         ),
 
@@ -390,30 +404,135 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
     OnlineChapter chapter,
     int index,
     String mangaTitle,
+    int totalChapters,
+    bool isFree,
   ) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          child: Text(
-            '${index + 1}',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
+          backgroundColor: isFree
+              ? Theme.of(context).colorScheme.primaryContainer
+              : Colors.amber.shade100,
+          child: isFree
+              ? Text(
+                  '${totalChapters - index}', // Số thứ tự mô phỏng
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                )
+              : const Icon(
+                  Icons.workspace_premium,
+                  color: Colors.amber,
+                  size: 18,
+                ),
         ),
         title: Text(chapter.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         trailing: const Icon(Icons.chevron_right),
-        onTap: () => _openChapter(chapter, mangaTitle),
+        onTap: () => _openChapter(chapter, mangaTitle, isFree),
       ),
     );
   }
 
-  /// Mở trang đọc chapter
-  void _openChapter(OnlineChapter chapter, String mangaTitle) {
+  /// Mở trang đọc chapter (kiểm tra phân quyền, quảng cáo, trừ xu)
+  Future<void> _openChapter(
+    OnlineChapter chapter,
+    String mangaTitle,
+    bool isFree,
+  ) async {
+    // Nếu là chapter Free -> Chuyển sang trang đọc luôn
+    if (isFree) {
+      _navigateToReadingScreen(chapter, mangaTitle);
+      return;
+    }
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    // Quyền đặc biệt: Admin và Editor không quan tâm Premium, đọc thả ga
+    if (authProvider.isAdmin || authProvider.isEditor) {
+      _navigateToReadingScreen(chapter, mangaTitle);
+      return;
+    }
+
+    // Nếu VIP (có >= 1 xu), duyệt thẳng và tự trừ xu nền
+    if (authProvider.hasCoins) {
+      final success = await authProvider.spendCoinsForChapter();
+      if (success) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '⚡ Đã trừ 1 xu để đọc chương Premium. (Không quảng cáo)',
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        _navigateToReadingScreen(chapter, mangaTitle);
+        return;
+      }
+    }
+
+    // Guest hoặc Member hết xu sẽ phải xem quảng cáo mới được vào
+    if (!mounted) return;
+
+    final shouldWatchAd = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.workspace_premium, color: Colors.amber, size: 28),
+            SizedBox(width: 8),
+            Text(
+              'Chương Premium 👑',
+              style: TextStyle(color: Colors.amber, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Text(
+          authProvider.isAuthenticated
+              ? 'Số dư xu của bạn không đủ.\nHãy nạp thẻ hoặc Xem video quảng cáo (5s) để mở khóa chương này.'
+              : 'Bạn cần Đăng nhập và nạp xu, hoặc \nXem quảng cáo (5s) để đọc miễn phí chương này.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Huỷ', style: TextStyle(color: Colors.grey)),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.play_circle_outline),
+            label: const Text('Xem quảng cáo'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldWatchAd != true || !mounted) return;
+
+    // Xem quảng cáo 5s giả lập
+    final adResult = await AdRewardDialog.show(context);
+
+    if (adResult == AdRewardResult.rewarded && mounted) {
+      // Đã xem xong, cho vào đọc
+      _navigateToReadingScreen(chapter, mangaTitle);
+    } else if (mounted) {
+      // Bị skip
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '❌ Bạn chưa xem hết quảng cáo nên không thể mở khoá chương.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Điều hướng thực sự tới màn hình đọc
+  void _navigateToReadingScreen(OnlineChapter chapter, String mangaTitle) {
     Navigator.push(
       context,
       MaterialPageRoute(

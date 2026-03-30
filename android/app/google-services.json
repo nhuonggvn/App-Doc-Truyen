@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "440742089229",
+    "project_id": "app-doctruyen-c7d68",
+    "storage_bucket": "app-doctruyen-c7d68.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:440742089229:android:89aa6e79651b6eee073b44",
+        "android_client_info": {
+          "package_name": "com.example.flutter_app_doctruyen"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "440742089229-p9ilcs1ic2ib88bjb9kjn54si3b2eo40.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.flutter_app_doctruyen",
+            "certificate_hash": "9d0aa31b1a2f4498ba99d39aad033613423bc42c"
+          }
+        },
+        {
+          "client_id": "440742089229-499pju2otdng8ckdqge0nspgsuerkoue.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCfRr0GOSPNsXqgPd3WN6K2HjmeQNE-iMM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "440742089229-499pju2otdng8ckdqge0nspgsuerkoue.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

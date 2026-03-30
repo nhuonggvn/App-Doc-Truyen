@@ -65,7 +65,7 @@ class _AuthScreenState extends State<AuthScreen> {
     return null;
   }
 
-  // Xử lý đăng nhập/đăng ký
+  // Xử lý đăng nhập/đăng ký bằng email
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -83,6 +83,18 @@ class _AuthScreenState extends State<AuthScreen> {
         _passwordController.text,
       );
     }
+
+    if (success && mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainNavigation()),
+      );
+    }
+  }
+
+  // Xử lý đăng nhập bằng Google
+  Future<void> _signInWithGoogle() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final success = await authProvider.signInWithGoogle();
 
     if (success && mounted) {
       Navigator.of(context).pushReplacement(
@@ -388,6 +400,65 @@ class _AuthScreenState extends State<AuthScreen> {
                                 );
                               },
                             ),
+
+                            // Separator "HOẶC" (chỉ hiện ở màn hình đăng nhập)
+                            if (_isLogin) ...[
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  const Expanded(child: Divider()),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                    ),
+                                    child: Text(
+                                      'HOẶC',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade500,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                  const Expanded(child: Divider()),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Nút đăng nhập bằng Google
+                              Consumer<AuthProvider>(
+                                builder: (context, auth, child) {
+                                  return OutlinedButton.icon(
+                                    onPressed: auth.isLoading
+                                        ? null
+                                        : _signInWithGoogle,
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(
+                                        double.infinity,
+                                        52,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      side: BorderSide(
+                                        color: Colors.grey.shade300,
+                                      ),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.g_mobiledata_rounded,
+                                      size: 28,
+                                      color: Colors.red,
+                                    ),
+                                    label: const Text(
+                                      'Đăng nhập bằng Google',
+                                      style: TextStyle(
+                                        color: Colors.black87,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
                           ],
                         ),
                       ),

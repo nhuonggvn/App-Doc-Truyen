@@ -10,8 +10,11 @@ import '../models/story.dart';
 import '../models/chapter.dart';
 import '../models/comment.dart';
 import '../viewmodels/story_provider.dart';
+import '../viewmodels/auth_provider.dart';
 import 'chapter_reading_screen.dart';
 import 'chapter_form_screen.dart';
+import 'member/ad_reward_dialog.dart';
+import 'member/coin_wallet_screen.dart';
 
 class StoryDetailScreen extends StatefulWidget {
   final Story story;
@@ -559,67 +562,325 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   Widget _buildChapterTile(Chapter chapter, int index) {
     final dateFormat = DateFormat('dd/MM/yyyy');
     final storyProvider = Provider.of<StoryProvider>(context);
+    final authProvider = Provider.of<AuthProvider>(context);
     final isRead = storyProvider.isChapterRead(chapter.id!);
+
+    // Giả lập logic VIP: từ chapter vị trí thứ 6 trở đi (index >= 5) là VIP
+    final isVip = index >= 5;
+    final isRestricted =
+        isVip && !authProvider.isAdmin && !authProvider.isEditor;
 
     // Màu vàng cho chương đã đọc
     final readColor = const Color(0xFFFFB300); // Amber/vàng đậm
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: isRead
-              ? readColor.withValues(alpha: 0.2)
-              : Theme.of(context).colorScheme.primaryContainer,
-          child: Text(
-            '${chapter.chapterNumber}',
+      child: Opacity(
+        opacity: isRestricted ? 0.5 : 1.0,
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: isRead
+                ? readColor.withValues(alpha: 0.2)
+                : Theme.of(context).colorScheme.primaryContainer,
+            child: Text(
+              '${chapter.chapterNumber}',
+              style: TextStyle(
+                color: isRead
+                    ? readColor
+                    : Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          title: Text(
+            chapter.displayTitle,
             style: TextStyle(
-              color: isRead ? readColor : Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.bold,
+              color: isRead ? readColor : null,
+              fontWeight: isRead ? FontWeight.w600 : null,
             ),
           ),
-        ),
-        title: Text(
-          chapter.displayTitle,
-          style: TextStyle(
-            color: isRead ? readColor : null,
-            fontWeight: isRead ? FontWeight.w600 : null,
+          subtitle: Text(
+            dateFormat.format(chapter.createdAt),
+            style: Theme.of(context).textTheme.bodySmall,
           ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${chapter.images.length} ảnh',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(width: 8),
+              if (isRestricted)
+                const Icon(Icons.lock, color: Colors.orange)
+              else
+                Icon(Icons.chevron_right, color: isRead ? readColor : null),
+            ],
+          ),
+          onTap: () => _handleReadChapter(chapter, index),
         ),
-        subtitle: Text(
-          dateFormat.format(chapter.createdAt),
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '${chapter.images.length} ảnh',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(width: 8),
-            Icon(Icons.chevron_right, color: isRead ? readColor : null),
-          ],
-        ),
-        onTap: () => _openChapter(chapter),
       ),
     );
   }
 
   void _readFromFirstChapter(List<Chapter> chapters) {
+    if (chapters.isEmpty) return;
     // Tìm chapter có số nhỏ nhất
     final firstChapter = chapters.reduce(
       (a, b) => a.chapterNumber < b.chapterNumber ? a : b,
     );
-    _openChapter(firstChapter);
+    final index = chapters.indexOf(firstChapter);
+    _handleReadChapter(firstChapter, index);
   }
 
-  void _openChapter(Chapter chapter) {
+  Future<void> _handleReadChapter(Chapter chapter, int index) async {
+    // Giả lập: index >= 5 là VIP
+    final bool isVip = index >= 5;
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    // 1. GUEST: Chưa đăng nhập
+    if (!authProvider.isAuthenticated) {
+      if (isVip) {
+        _showLoginRequiredDialog();
+        return;
+      } else {
+        // Free -> read with Ads
+        _watchAdAndRead(chapter);
+        return;
+      }
+    }
+
+    // 2. VIP (Admin & Editor): Đọc miễn phí nội dung VIP, không quảng cáo
+    if (authProvider.isAdmin || authProvider.isEditor) {
+      _navigateToReadingScreen(chapter);
+      return;
+    }
+
+    // 3. MEMBER: Đã tải khoản thường
+    if (isVip) {
+      if (authProvider.coins >= 1) {
+        // Tốn 1 xu và VẪN xem quảng cáo theo flow yêu cầu
+        final success = await authProvider.spendCoinsForChapter();
+        if (success) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⚡ Đã trừ 1 xu để mở khóa chương VIP.'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+          _watchAdAndRead(chapter);
+        } else {
+          _showInsufficientFundsBottomSheet();
+        }
+      } else {
+        // Tài khoản không đủ xu
+        _showInsufficientFundsBottomSheet();
+      }
+    } else {
+      // Chương free -> Chỉ xem Ads
+      _watchAdAndRead(chapter);
+    }
+  }
+
+  Future<void> _watchAdAndRead(Chapter chapter) async {
+    final adResult = await AdRewardDialog.show(context);
+    if (adResult == AdRewardResult.rewarded && mounted) {
+      _navigateToReadingScreen(chapter);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '❌ Bạn chưa xem hết quảng cáo nên không thể đọc chương.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _navigateToReadingScreen(Chapter chapter) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) =>
             ChapterReadingScreen(story: widget.story, chapter: chapter),
+      ),
+    );
+  }
+
+  void _showInsufficientFundsBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: 20,
+          right: 20,
+          top: 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 50,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Icon(
+              Icons.account_balance_wallet_outlined,
+              size: 60,
+              color: Colors.orange,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Bạn đã hết Xu!',
+              style: Theme.of(ctx).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.orange.shade800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Vui lòng nạp thêm Xu hoặc xem video quảng cáo để mở khóa chương VIP này tiếp tục cuộc hành trình.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.deepOrange, // Vibrant Orange/Red
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx); // Đóng BottomSheet
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CoinWalletScreen()),
+                  );
+                },
+                icon: const Icon(Icons.payment),
+                label: const Text(
+                  'Nạp Xu (Qua VNPay)',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: Colors.blue.shade300, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  _watchAdForCoin();
+                },
+                icon: const Icon(Icons.play_circle_fill, color: Colors.blue),
+                label: const Text(
+                  'Xem Video Quảng Cáo (+1 Lượt)',
+                  style: TextStyle(
+                    color: Colors.blue,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 48), // Padding an toàn đẩy lên
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _watchAdForCoin() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: Colors.blue),
+              SizedBox(height: 16),
+              Text(
+                'Đang nhận thưởng quảng cáo...',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // Thời gian chờ mô phỏng ad
+    await Future.delayed(const Duration(seconds: 3));
+
+    if (!mounted) return;
+    Navigator.pop(context); // Đóng Dialog Loading
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    await authProvider.purchaseCoins(1);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🎉 Nhận thành công +1 Xu từ việc xem quảng cáo!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  void _showLoginRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.lock, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Chương VIP'),
+          ],
+        ),
+        content: const Text('Vui lòng đăng nhập để đọc truyện VIP.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Huỷ', style: TextStyle(color: Colors.grey)),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+            },
+            child: const Text('Đã hiểu'),
+          ),
+        ],
       ),
     );
   }
