@@ -12,9 +12,11 @@ import '../viewmodels/auth_provider.dart';
 import '../viewmodels/story_provider.dart';
 import '../viewmodels/theme_provider.dart';
 import '../viewmodels/online_manga_provider.dart';
+import '../services/manga_api_service.dart';
 import 'auth_screen.dart';
 import 'online_manga_detail_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -23,7 +25,8 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with WidgetsBindingObserver {
   String? _avatarPath;
   String _displayName = 'Người dùng';
   final ImagePicker _picker = ImagePicker();
@@ -31,10 +34,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadProfile();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<StoryProvider>(context, listen: false).loadFavorites();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Khi người dùng quay lại từ trình duyệt thanh toán VNPay
+      // Reload lại thông tin user từ server (để cập nhật role Premium)
+      final authProvider = context.read<AuthProvider>();
+      if (authProvider.isAuthenticated) {
+        authProvider.tryAutoLogin(); // Sẽ gọi API lấy lại profile mới
+      }
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -701,41 +723,118 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showUpgradeVipDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.workspace_premium, color: Colors.orange, size: 28),
-            SizedBox(width: 8),
-            Text('VIP Member'),
-          ],
-        ),
-        content: const Text(
-          'Đăng ký gói VIP (Mô phỏng) để loại bỏ quảng cáo và mở khóa vĩnh viễn tất cả truyện tính phí.\n\nTính năng này đang trong quá trình phát triển (Mock).',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Để sau'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Tính năng nâng cấp VIP chưa tích hợp cổng thanh toán trực tiếp.',
-                    style: TextStyle(color: Colors.white),
+      builder: (context) {
+        return FutureBuilder<List<Map<String, dynamic>>>(
+          future: MangaApiService.getPlans(),
+          builder: (context, snapshot) {
+            final plans = snapshot.data ?? [];
+            final isLoading =
+                snapshot.connectionState == ConnectionState.waiting;
+
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.workspace_premium, color: Colors.orange, size: 28),
+                  SizedBox(width: 8),
+                  Text('Chọn Gói Hội Viên'),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: isLoading
+                    ? const Center(
+                        heightFactor: 3,
+                        child: CircularProgressIndicator(color: Colors.orange),
+                      )
+                    : plans.isEmpty
+                    ? const Text('Hiện tại không có gói VIP nào được mở bán.')
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: plans.length,
+                        separatorBuilder: (context, index) => const Divider(),
+                        itemBuilder: (context, index) {
+                          final plan = plans[index];
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              plan['name'] ?? 'Gói VIP',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${plan['durationDays']} ngày - ${plan['description'] ?? ''}',
+                            ),
+                            trailing: ElevatedButton(
+                              onPressed: () =>
+                                  _handleSubscribePlan(context, plan['_id']),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: Text('${plan['price']} đ'),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'Để sau',
+                    style: TextStyle(color: Colors.grey),
                   ),
-                  backgroundColor: Colors.orange,
                 ),
-              );
-            },
-            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Nâng cấp ngay'),
-          ),
-        ],
-      ),
+              ],
+            );
+          },
+        );
+      },
     );
+  }
+
+  Future<void> _handleSubscribePlan(BuildContext context, String planId) async {
+    // Đóng dialog danh sách gói
+    Navigator.pop(context);
+
+    // Hiển thị loading overlay
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) =>
+          const Center(child: CircularProgressIndicator(color: Colors.orange)),
+    );
+
+    final urlString = await MangaApiService.createPaymentUrl(planId);
+
+    // Đóng loading
+    if (context.mounted) Navigator.pop(context);
+
+    if (urlString != null && urlString.isNotEmpty) {
+      final uri = Uri.parse(urlString);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Không thể mở liên kết thanh toán VNPay'),
+            ),
+          );
+        }
+      }
+    } else {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Lỗi thao tác hoặc chưa đăng nhập. Không thể tạo liên kết VNPay.',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildCoverImage(BuildContext context, String? coverImage) {

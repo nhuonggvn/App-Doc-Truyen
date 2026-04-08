@@ -418,4 +418,54 @@ class MangaApiService {
       return false;
     }
   }
+
+  // ==================== PAYMENT & PLANS ====================
+
+  /// Lấy danh sách các gói cước đang bán
+  static Future<List<Map<String, dynamic>>> getPlans() async {
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/plans'))
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        if (jsonData['success'] == true && jsonData['data'] != null) {
+          return List<Map<String, dynamic>>.from(jsonData['data']);
+        }
+      }
+      return [];
+    } catch (e) {
+      debugPrint('❌ Manga API lỗi tải danh sách Plans: $e');
+      return [];
+    }
+  }
+
+  /// Gọi API tạo payment URL VNPay
+  static Future<String?> createPaymentUrl(String planId) async {
+    try {
+      final headers = await _getHeaders();
+      if (!headers.containsKey('Authorization')) return null;
+
+      final body = json.encode({'planId': planId});
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/payment/create-url'),
+            headers: headers,
+            body: body,
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        if (jsonData['success'] == true && jsonData['paymentUrl'] != null) {
+          return jsonData['paymentUrl'].toString();
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('❌ Manga API lỗi tạo payment URL: $e');
+      return null;
+    }
+  }
 }

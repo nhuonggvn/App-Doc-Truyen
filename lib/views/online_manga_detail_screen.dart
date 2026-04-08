@@ -45,11 +45,37 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // AppBar với ảnh bìa
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(background: _buildCoverImage()),
+            actions: [
+              Consumer<OnlineMangaProvider>(
+                builder: (context, mangaProvider, child) {
+                  final isFav = mangaProvider.isFavorite(widget.manga.slug);
+                  return IconButton(
+                    icon: Icon(
+                      isFav ? Icons.favorite : Icons.favorite_border,
+                      color: isFav ? Colors.red : Colors.white,
+                    ),
+                    onPressed: () {
+                      final authProvider = context.read<AuthProvider>();
+                      if (!authProvider.isAuthenticated) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Vui lòng đăng nhập để thêm vào yêu thích',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      mangaProvider.toggleFavorite(widget.manga);
+                    },
+                  );
+                },
+              ),
+            ],
           ),
 
           // Nội dung chi tiết
@@ -446,13 +472,13 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
 
     // 1. Quản trị viên & Biên tập viên: Quyền tối thượng
     if (authProvider.isAdmin || authProvider.isEditor) {
-      _navigateToReadingScreen(chapter, mangaTitle);
+      _navigateToReadingScreen(chapter, widget.manga);
       return;
     }
 
     // 2. Hội viên Premium: Đọc mọi thứ
     if (authProvider.isAuthenticated && authProvider.currentUser!.isVip) {
-      _navigateToReadingScreen(chapter, mangaTitle);
+      _navigateToReadingScreen(chapter, widget.manga);
       return;
     }
 
@@ -460,7 +486,7 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
     if (isFree) {
       final adResult = await AdRewardDialog.show(context);
       if (adResult == AdRewardResult.rewarded && mounted) {
-        _navigateToReadingScreen(chapter, mangaTitle);
+        _navigateToReadingScreen(chapter, widget.manga);
       }
       return;
     }
@@ -502,14 +528,12 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
   }
 
   // Điều hướng thực sự tới màn hình đọc
-  void _navigateToReadingScreen(OnlineChapter chapter, String mangaTitle) {
+  void _navigateToReadingScreen(OnlineChapter chapter, OnlineManga manga) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => OnlineChapterReadingScreen(
-          chapter: chapter,
-          mangaTitle: mangaTitle,
-        ),
+        builder: (context) =>
+            OnlineChapterReadingScreen(chapter: chapter, manga: manga),
       ),
     );
   }

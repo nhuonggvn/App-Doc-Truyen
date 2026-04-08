@@ -1,13 +1,13 @@
 // lib/views/reading_history_screen.dart
-// Màn hình lịch sử đọc truyện
+// Màn hình lịch sử đọc truyện (đồng bộ Cloud qua REST API)
 
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../viewmodels/story_provider.dart';
-import '../models/reading_history.dart';
-import 'chapter_reading_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../viewmodels/online_manga_provider.dart';
+import '../models/online_manga.dart';
+import 'online_manga_detail_screen.dart';
 
 class ReadingHistoryScreen extends StatefulWidget {
   const ReadingHistoryScreen({super.key});
@@ -24,19 +24,18 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen>
     _loadHistory();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Auto refresh khi tab được chọn
-  }
-
   void _loadHistory() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<StoryProvider>(context, listen: false).loadReadingHistory();
+      if (mounted) {
+        Provider.of<OnlineMangaProvider>(
+          context,
+          listen: false,
+        ).loadReadingProgress();
+      }
     });
   }
 
-  // Gọi mỗi khi màn hình được focus (quay lại từ màn hình khác)
+  // Gọi mỗi khi màn hình được focus
   @override
   void didPopNext() {
     super.didPopNext();
@@ -46,29 +45,18 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Lịch Sử Đọc'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_sweep),
-            tooltip: 'Xóa tất cả lịch sử',
-            onPressed: _confirmClearHistory,
-          ),
-        ],
-      ),
-
-      body: Consumer<StoryProvider>(
+      appBar: AppBar(title: const Text('Lịch Sử Đọc')),
+      body: Consumer<OnlineMangaProvider>(
         builder: (context, provider, child) {
           if (provider.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // Luôn cho phép pull-to-refresh, kể cả khi ko có gì
           return RefreshIndicator(
-            onRefresh: () => provider.loadReadingHistory(),
-            child: provider.readingHistory.isEmpty
+            onRefresh: () => provider.loadReadingProgress(),
+            child: provider.readingProgress.isEmpty
                 ? _buildEmptyState()
-                : _buildHistoryList(provider.readingHistory),
+                : _buildHistoryList(provider.readingProgress),
           );
         },
       ),
@@ -98,15 +86,8 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen>
               ),
               const SizedBox(height: 8),
               Text(
-                'Các truyện bạn đọc sẽ hiển thị ở đây',
+                'Lịch sử đọc sẽ được tự động đồng bộ lên Cloud',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Kéo xuống để làm mới',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.outline,
                 ),
               ),
@@ -117,8 +98,8 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen>
     );
   }
 
-  Widget _buildHistoryList(List<ReadingHistory> history) {
-    // Nhóm theo ngày
+  Widget _buildHistoryList(List<Map<String, dynamic>> history) {
+    // Nhóm theo ngày từ trường 'updatedAt'
     final grouped = _groupByDate(history);
 
     return ListView.builder(
@@ -148,26 +129,36 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen>
     );
   }
 
-  Map<String, List<ReadingHistory>> _groupByDate(List<ReadingHistory> history) {
-    final Map<String, List<ReadingHistory>> grouped = {};
+  Map<String, List<Map<String, dynamic>>> _groupByDate(
+    List<Map<String, dynamic>> history,
+  ) {
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
 
     for (var item in history) {
-      final itemDate = DateTime(
-        item.readAt.year,
-        item.readAt.month,
-        item.readAt.day,
-      );
+      DateTime? t;
+      if (item['updatedAt'] != null) {
+        try {
+          t = DateTime.parse(item['updatedAt']).toLocal();
+        } catch (_) {}
+      }
+      if (t == null) continue;
+
+      final itemDate = DateTime(t.year, t.month, t.day);
       String key;
 
-      if (itemDate == today) {
+      if (itemDate.year == today.year &&
+          itemDate.month == today.month &&
+          itemDate.day == today.day) {
         key = 'Hôm nay';
-      } else if (itemDate == yesterday) {
+      } else if (itemDate.year == yesterday.year &&
+          itemDate.month == yesterday.month &&
+          itemDate.day == yesterday.day) {
         key = 'Hôm qua';
       } else {
-        key = DateFormat('dd/MM/yyyy').format(item.readAt);
+        key = DateFormat('dd/MM/yyyy').format(t);
       }
 
       grouped.putIfAbsent(key, () => []);
@@ -177,13 +168,41 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen>
     return grouped;
   }
 
-  Widget _buildHistoryItem(ReadingHistory item) {
-    final timeFormat = DateFormat('HH:mm');
+  Widget _buildHistoryItem(Map<String, dynamic> item) {
+    final title = item['mangaTitle'] ?? 'Không rõ tên';
+    final chapterName = item['chapterName'] ?? 'Không rõ chương';
+    final imageUrl = item['mangaImage'];
+
+    DateTime? t;
+    if (item['updatedAt'] != null) {
+      try {
+        t = DateTime.parse(item['updatedAt']).toLocal();
+      } catch (_) {}
+    }
+    final timeStr = t != null ? DateFormat('HH:mm').format(t) : '';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: InkWell(
-        onTap: () => _openChapter(item),
+        onTap: () {
+          // Bạn có thể mở đọc luôn chương đó nếu có API,
+          // Hiện tại điều hướng tới truyện để user chọn.
+          final slug = item['mangaSlug'];
+          if (slug != null) {
+            final manga = OnlineManga(
+              id: slug, // History API không trả về id, dùng slug tạm
+              slug: slug,
+              title: title,
+              image: imageUrl != null ? imageUrl.toString() : null,
+            );
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OnlineMangaDetailScreen(manga: manga),
+              ),
+            );
+          }
+        },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -192,7 +211,23 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen>
               // Ảnh bìa
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: _buildCoverImage(item.storyCoverImage),
+                child: SizedBox(
+                  width: 60,
+                  height: 80,
+                  child: imageUrl != null && imageUrl.toString().isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) =>
+                              Container(color: Colors.grey[300]),
+                          errorWidget: (context, url, err) =>
+                              Icon(Icons.image_not_supported),
+                        )
+                      : Container(
+                          color: Colors.grey[300],
+                          child: Icon(Icons.book),
+                        ),
+                ),
               ),
               const SizedBox(width: 12),
               // Thông tin
@@ -201,7 +236,7 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item.storyTitle ?? 'Không rõ tên',
+                      title,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -220,7 +255,7 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen>
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            'Chương ${item.chapterNumber}',
+                            chapterName,
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.primary,
                               fontWeight: FontWeight.w500,
@@ -232,10 +267,7 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen>
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      timeFormat.format(item.readAt),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                    Text(timeStr, style: Theme.of(context).textTheme.bodySmall),
                   ],
                 ),
               ),
@@ -244,89 +276,6 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen>
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildCoverImage(String? coverPath) {
-    if (coverPath != null && coverPath.isNotEmpty) {
-      final file = File(coverPath);
-      if (file.existsSync()) {
-        return Image.file(file, width: 60, height: 80, fit: BoxFit.cover);
-      }
-    }
-
-    return Container(
-      width: 60,
-      height: 80,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Icon(Icons.book, color: Theme.of(context).colorScheme.outline),
-    );
-  }
-
-  Future<void> _openChapter(ReadingHistory item) async {
-    final storyProvider = Provider.of<StoryProvider>(context, listen: false);
-
-    try {
-      // Load story và chapters
-      await storyProvider.loadStories();
-      final story = storyProvider.stories.firstWhere(
-        (s) => s.id == item.storyId,
-      );
-
-      await storyProvider.loadChapters(item.storyId);
-      final chapter = storyProvider.currentChapters.firstWhere(
-        (c) => c.id == item.chapterId,
-      );
-
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                ChapterReadingScreen(story: story, chapter: chapter),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Không tìm thấy chương')));
-      }
-    }
-  }
-
-  void _confirmClearHistory() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xóa lịch sử'),
-        content: const Text('Bạn có chắc muốn xóa toàn bộ lịch sử đọc?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final provider = Provider.of<StoryProvider>(
-                context,
-                listen: false,
-              );
-              final success = await provider.clearAllReadingHistory();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(success ? 'Đã xóa lịch sử' : 'Không thể xóa'),
-                  ),
-                );
-              }
-            },
-            child: const Text('Xóa'),
-          ),
-        ],
       ),
     );
   }

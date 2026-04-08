@@ -10,12 +10,12 @@ import '../viewmodels/online_manga_provider.dart';
 /// Trang đọc nội dung chapter online - hiển thị danh sách ảnh cuộn dọc
 class OnlineChapterReadingScreen extends StatefulWidget {
   final OnlineChapter chapter; // Thông tin chapter cần đọc
-  final String mangaTitle; // Tên truyện (hiển thị trên AppBar)
+  final OnlineManga manga; // Thông tin truyện để lưu lịch sử đọc
 
   const OnlineChapterReadingScreen({
     super.key,
     required this.chapter,
-    required this.mangaTitle,
+    required this.manga,
   });
 
   @override
@@ -32,11 +32,22 @@ class _OnlineChapterReadingScreenState
   void initState() {
     super.initState();
     // Tải ảnh chapter từ API khi mở trang
+    // Update Reading Progress on Cloud
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<OnlineMangaProvider>(
-        context,
-        listen: false,
-      ).loadChapterImages(widget.chapter.apiId);
+      final provider = context.read<OnlineMangaProvider>();
+
+      // Tải hình ảnh
+      provider.loadChapterImages(widget.chapter.apiId);
+
+      // Cập nhật lịch sử đọc
+      provider.updateReadingProgress(
+        mangaSlug: widget.manga.slug,
+        chapterApiId: widget.chapter.apiId,
+        mangaTitle: widget.manga.title,
+        mangaImage: widget.manga.image,
+        chapterName: widget.chapter.name,
+        pageIndex: 0,
+      );
     });
   }
 
@@ -53,7 +64,7 @@ class _OnlineChapterReadingScreenState
                 children: [
                   // Tên truyện
                   Text(
-                    widget.mangaTitle,
+                    widget.manga.title,
                     style: const TextStyle(fontSize: 14),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
