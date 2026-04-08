@@ -1,42 +1,45 @@
 // lib/models/app_user.dart
-// Model đại diện cho người dùng trong hệ thống phân quyền (Refactored for Auth Split)
+// Model người dùng - đồng bộ hoàn toàn với Manga App API Backend
+// Response từ /auth/login & /auth/me: { id, username, fullname, phone, avatar }
+// Role được decode từ JWT payload
 
-/// Enum định nghĩa các nguồn xác thực của hệ thống
-enum AuthSource {
-  /// Xác thực qua Firebase (cho Member/VIP)
-  firebase,
+import 'dart:convert';
 
-  /// Xác thực qua Custom BE API (cho Admin/Editor)
-  custom,
-}
+// ─────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────
 
-/// Enum định nghĩa 4 vai trò trong hệ thống
+/// Vai trò người dùng trong hệ thống
 enum UserRole {
-  /// Người dùng chưa đăng nhập
+  /// Khách chưa đăng nhập
   guest,
 
-  /// Thành viên thường (đăng nhập bằng Firebase)
+  /// Thành viên thường
   member,
 
-  /// Thành viên VIP (trả phí - quản lý qua Firebase)
+  /// Thành viên VIP (đã mua gói)
   vip,
 
-  /// Biên tập viên (quản lý qua Custom BE)
+  /// Biên tập viên (tạo/sửa truyện, không quản lý user)
   editor,
 
-  /// Quản trị viên (quản lý qua Custom BE)
+  /// Quản trị viên (toàn quyền)
   admin,
 }
 
-/// Chuyển chuỗi thành UserRole
+// ─────────────────────────────────────────────────────────
+// HELPER FUNCTIONS
+// ─────────────────────────────────────────────────────────
+
+/// Chuyển chuỗi role từ JWT/API sang enum
 UserRole userRoleFromString(String? role) {
-  switch (role) {
+  switch (role?.toLowerCase()) {
     case 'admin':
       return UserRole.admin;
-    case 'vip':
-      return UserRole.vip;
     case 'editor':
       return UserRole.editor;
+    case 'vip':
+      return UserRole.vip;
     case 'member':
       return UserRole.member;
     default:
@@ -44,7 +47,7 @@ UserRole userRoleFromString(String? role) {
   }
 }
 
-/// Chuyển UserRole thành chuỗi
+/// Chuyển enum sang chuỗi để lưu trữ
 String userRoleToString(UserRole role) {
   switch (role) {
     case UserRole.admin:
@@ -60,44 +63,202 @@ String userRoleToString(UserRole role) {
   }
 }
 
-/// Model người dùng đầy đủ
+/// Decode JWT token không cần verify signature (chỉ để đọc payload phía client)
+/// Backend vẫn là nơi verify thật sự khi nhận request
+Map<String, dynamic> _decodeJwtPayload(String token) {
+  try {
+    final parts = token.split('.');
+    if (parts.length != 3) return {};
+
+    // Base64url decode phần payload (phần thứ 2)
+    String payload = parts[1];
+    // Thêm padding nếu cần
+    while (payload.length % 4 != 0) {
+      payload += '=';
+    }
+    final decoded = utf8.decode(base64Url.decode(payload));
+    return json.decode(decoded) as Map<String, dynamic>;
+  } catch (e) {
+    return {};
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// MODEL CHÍNH
+// ─────────────────────────────────────────────────────────
+
+/// Model đại diện cho người dùng đã xác thực
 class AppUser {
-  final String uid;
-  final String? email;
-  final String? displayName;
-  final String? photoUrl;
+  /// ID MongoDB từ Backend (ví dụ: "65d4c9f8a1b2c3d4e5f6g7h8")
+  final String id;
+
+  /// Tên đăng nhập (unique)
+  final String username;
+
+  /// Họ tên đầy đủ (optional)
+  final String? fullname;
+
+  /// Số điện thoại (optional)
+  final String? phone;
+
+  /// URL ảnh đại diện từ MinIO/CDN
+  final String? avatar;
+
+  /// Vai trò trong hệ thống (decode từ JWT hoặc set thủ công)
   final UserRole role;
-  final AuthSource authSource;
-  final String? token; // JWT dành cho Admin/Editor
-  final int coins; // Sẽ deprecate ở Phase 2
-  final DateTime createdAt;
-  final bool isDisabled;
 
-  AppUser({
-    required this.uid,
-    this.email,
-    this.displayName,
-    this.photoUrl,
+  /// JWT Token dùng để xác thực các request tiếp theo
+  final String token;
+
+  /// Trạng thái VIP: có gói đang hoạt động hay không
+  final bool isVipActive;
+
+  /// Ngày hết hạn VIP (null nếu không có gói)
+  final DateTime? vipExpiredAt;
+
+  const AppUser({
+    required this.id,
+    required this.username,
+    this.fullname,
+    this.phone,
+    this.avatar,
     this.role = UserRole.member,
-    this.authSource = AuthSource.firebase,
-    this.token,
-    this.coins = 0,
-    DateTime? createdAt,
-    this.isDisabled = false,
-  }) : createdAt = createdAt ?? DateTime.now();
+    required this.token,
+    this.isVipActive = false,
+    this.vipExpiredAt,
+  });
 
-  // ==================== THUỘC TÍNH TIỆN ÍCH ====================
+  // ─────────────────────────────────────────────────────────
+  // FACTORY CONSTRUCTORS
+  // ─────────────────────────────────────────────────────────
 
+  /// Tạo AppUser từ response JSON của /auth/login hoặc /auth/register
+  /// Response format: { "data": { "token": "...", "user": { "id", "username", ... } } }
+  factory AppUser.fromLoginResponse(Map<String, dynamic> data) {
+    final token = data['token'] as String? ?? '';
+    final userJson = data['user'] as Map<String, dynamic>? ?? {};
+
+    // Decode role từ JWT payload
+    final jwtPayload = _decodeJwtPayload(token);
+    final roleStr = jwtPayload['role'] as String?;
+    final role = userRoleFromString(roleStr);
+
+    return AppUser(
+      id: userJson['id'] as String? ?? '',
+      username: userJson['username'] as String? ?? '',
+      fullname: userJson['fullname'] as String?,
+      phone: userJson['phone'] as String?,
+      avatar: userJson['avatar'] as String?,
+      role: role,
+      token: token,
+    );
+  }
+
+  /// Tạo AppUser từ response JSON của /auth/me
+  /// Cần truyền token đang dùng vào để giữ lại
+  factory AppUser.fromMeResponse(
+    Map<String, dynamic> userJson,
+    String currentToken,
+  ) {
+    // Decode role từ JWT
+    final jwtPayload = _decodeJwtPayload(currentToken);
+    final roleStr = jwtPayload['role'] as String?;
+    final role = userRoleFromString(roleStr);
+
+    return AppUser(
+      id: userJson['id'] as String? ?? '',
+      username: userJson['username'] as String? ?? '',
+      fullname: userJson['fullname'] as String?,
+      phone: userJson['phone'] as String?,
+      avatar: userJson['avatar'] as String?,
+      role: role,
+      token: currentToken,
+    );
+  }
+
+  /// Tạo bản sao với VIP status được cập nhật
+  AppUser copyWithVipStatus({
+    required bool isVipActive,
+    DateTime? vipExpiredAt,
+  }) {
+    return AppUser(
+      id: id,
+      username: username,
+      fullname: fullname,
+      phone: phone,
+      avatar: avatar,
+      role: isVipActive ? UserRole.vip : role,
+      token: token,
+      isVipActive: isVipActive,
+      vipExpiredAt: vipExpiredAt,
+    );
+  }
+
+  /// Tạo bản sao với token mới (sau khi refresh)
+  AppUser copyWithToken(String newToken) {
+    final jwtPayload = _decodeJwtPayload(newToken);
+    final roleStr = jwtPayload['role'] as String?;
+    final newRole = userRoleFromString(roleStr);
+
+    return AppUser(
+      id: id,
+      username: username,
+      fullname: fullname,
+      phone: phone,
+      avatar: avatar,
+      role: newRole,
+      token: newToken,
+      isVipActive: isVipActive,
+      vipExpiredAt: vipExpiredAt,
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // THUỘC TÍNH TIỆN ÍCH
+  // ─────────────────────────────────────────────────────────
+
+  /// Kiểm tra có phải Admin không
   bool get isAdmin => role == UserRole.admin;
-  bool get isEditor => role == UserRole.editor || role == UserRole.admin;
-  bool get isVip => role == UserRole.vip || isAdmin || isEditor;
-  bool get isMember => role == UserRole.member || role == UserRole.vip;
 
-  /// Kiểm tra xem user có phải là cấp Quản lý (Admin/Editor) từ Custom BE không
-  bool get isManager => authSource == AuthSource.custom;
+  /// Kiểm tra có phải Editor hoặc Admin không (dùng chung nhóm "Staff")
+  bool get isStaff => role == UserRole.editor || role == UserRole.admin;
 
-  String get name => displayName ?? email?.split('@').first ?? 'Người dùng';
+  /// Kiểm tra Editor (chỉ đúng với editor, không phải admin)
+  bool get isEditor => role == UserRole.editor;
 
+  /// Kiểm tra có quyền tạo/sửa/xóa Manga không
+  /// Editor và Admin đều được phép
+  bool get canManageManga => isStaff;
+
+  /// Kiểm tra xem user có phải là VIP (mua gói, hoặc là Admin/Editor)
+  bool get isVip => role == UserRole.vip || isVipActive || isStaff;
+
+  /// Kiểm tra có quyền quản lý Plans, Users không (chỉ Admin)
+  bool get canManageUsers => isAdmin;
+
+  /// Kiểm tra có quyền quản lý Plans không (chỉ Admin)
+  bool get canManagePlans => isAdmin;
+
+  /// Tên hiển thị: ưu tiên fullname, fallback về username
+  String get displayName => fullname?.isNotEmpty == true ? fullname! : username;
+
+  /// Icon vai trò để hiển thị Badge
+  String get roleIcon {
+    switch (role) {
+      case UserRole.admin:
+        return '👑';
+      case UserRole.editor:
+        return '✏️';
+      case UserRole.vip:
+        return '⭐';
+      case UserRole.member:
+        return '👤';
+      case UserRole.guest:
+        return '🌐';
+    }
+  }
+
+  /// Nhãn vai trò tiếng Việt
   String get roleLabel {
     switch (role) {
       case UserRole.admin:
@@ -113,93 +274,8 @@ class AppUser {
     }
   }
 
-  String get roleIcon {
-    switch (role) {
-      case UserRole.admin:
-        return '👑';
-      case UserRole.editor:
-        return '✏️';
-      case UserRole.vip:
-        return '👑';
-      case UserRole.member:
-        return '👤';
-      case UserRole.guest:
-        return '🌐';
-    }
-  }
-
-  // ==================== PARSE / SERIALIZE ====================
-
-  /// Tạo Member từ Firestore (Firebase Auth)
-  factory AppUser.fromFirestore(
-    String uid,
-    Map<String, dynamic> data, {
-    String? email,
-    String? displayName,
-    String? photoUrl,
-  }) {
-    return AppUser(
-      uid: uid,
-      email: email ?? data['email']?.toString(),
-      displayName: displayName ?? data['displayName']?.toString(),
-      photoUrl: photoUrl ?? data['photoUrl']?.toString(),
-      role: userRoleFromString(data['role']?.toString()),
-      authSource: AuthSource.firebase,
-      coins: (data['coins'] as int?) ?? 0,
-      createdAt: data['createdAt'] != null
-          ? DateTime.tryParse(data['createdAt'].toString()) ?? DateTime.now()
-          : DateTime.now(),
-      isDisabled: (data['isDisabled'] as bool?) ?? false,
-    );
-  }
-
-  /// Tạo Manager (Admin/Editor) từ Custom BE API
-  factory AppUser.fromCustomApi(Map<String, dynamic> data, String token) {
-    return AppUser(
-      uid: data['id']?.toString() ?? '',
-      email: data['email']?.toString(),
-      displayName: data['name']?.toString(),
-      photoUrl: data['avatar']?.toString(),
-      role: userRoleFromString(data['role']?.toString()),
-      authSource: AuthSource.custom,
-      token: token,
-      createdAt: DateTime.now(),
-    );
-  }
-
-  Map<String, dynamic> toFirestore() {
-    return {
-      'email': email,
-      'displayName': displayName,
-      'photoUrl': photoUrl,
-      'role': userRoleToString(role),
-      'coins': coins,
-      'createdAt': createdAt.toIso8601String(),
-      'isDisabled': isDisabled,
-    };
-  }
-
-  AppUser copyWith({
-    String? email,
-    String? displayName,
-    String? photoUrl,
-    UserRole? role,
-    AuthSource? authSource,
-    String? token,
-    int? coins,
-    bool? isDisabled,
-  }) {
-    return AppUser(
-      uid: uid,
-      email: email ?? this.email,
-      displayName: displayName ?? this.displayName,
-      photoUrl: photoUrl ?? this.photoUrl,
-      role: role ?? this.role,
-      authSource: authSource ?? this.authSource,
-      token: token ?? this.token,
-      coins: coins ?? this.coins,
-      createdAt: createdAt,
-      isDisabled: isDisabled ?? this.isDisabled,
-    );
+  @override
+  String toString() {
+    return 'AppUser(id: $id, username: $username, role: ${userRoleToString(role)})';
   }
 }

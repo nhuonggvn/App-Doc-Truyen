@@ -11,9 +11,10 @@ import '../models/app_user.dart';
 import '../viewmodels/auth_provider.dart';
 import '../viewmodels/story_provider.dart';
 import '../viewmodels/theme_provider.dart';
+import '../viewmodels/online_manga_provider.dart';
 import 'auth_screen.dart';
-import 'story_detail_screen.dart';
-// import 'member/coin_wallet_screen.dart'; // Đã loại bỏ logic nạp tiền
+import 'online_manga_detail_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -139,8 +140,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final themeProvider = Provider.of<ThemeProvider>(context);
-    final storyProvider = Provider.of<StoryProvider>(context);
-    final isManager = authProvider.currentUser?.authSource == AuthSource.custom;
+    final onlineMangaProvider = Provider.of<OnlineMangaProvider>(context);
+    final isManager = authProvider.currentUser?.isStaff ?? false;
 
     return Scaffold(
       // Không hardcode màu nền - tự lấy từ Theme (trắng sáng / đen tối)
@@ -227,7 +228,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 Text(
-                  '${storyProvider.favorites.length} truyện',
+                  '${onlineMangaProvider.favorites.length} truyện',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -237,7 +238,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 8),
 
-          if (storyProvider.favorites.isEmpty)
+          if (onlineMangaProvider.favorites.isEmpty)
             Card(
               margin: const EdgeInsets.symmetric(horizontal: 16),
               child: Padding(
@@ -261,8 +262,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             )
           else
-            ...storyProvider.favorites.map(
-              (story) => Card(
+            ...onlineMangaProvider.favorites.map(
+              (manga) => Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
@@ -270,7 +271,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => StoryDetailScreen(story: story),
+                        builder: (context) =>
+                            OnlineMangaDetailScreen(manga: manga),
                       ),
                     );
                   },
@@ -278,11 +280,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     height: 80,
                     child: Row(
                       children: [
-                        // Ảnh bìa - vuông đều
+                        // Ảnh bìa
                         SizedBox(
                           width: 80,
                           height: 80,
-                          child: _buildCoverImage(context, story.coverImage),
+                          child: CachedNetworkImage(
+                            imageUrl: manga.image ?? '',
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) =>
+                                Container(color: Colors.grey[300]),
+                            errorWidget: (context, url, error) =>
+                                const Icon(Icons.image_not_supported),
+                          ),
                         ),
                         // Thông tin
                         Expanded(
@@ -293,43 +302,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  story.title,
+                                  manga.title,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.titleSmall
                                       ?.copyWith(fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(height: 4),
-                                FutureBuilder<int>(
-                                  future: storyProvider.getChapterCount(
-                                    story.id!,
-                                  ),
-                                  builder: (context, snapshot) {
-                                    final count = snapshot.data ?? 0;
-                                    return Row(
-                                      children: [
-                                        Icon(
-                                          Icons.menu_book,
-                                          size: 12,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '$count chương',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: Theme.of(
-                                                  context,
-                                                ).colorScheme.primary,
-                                              ),
-                                        ),
-                                      ],
-                                    );
-                                  },
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.cloud_done_outlined,
+                                      size: 12,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Lưu trên Cloud',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
+                                          ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -338,7 +339,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         // Nút yêu thích
                         IconButton(
                           icon: const Icon(Icons.favorite, color: Colors.red),
-                          onPressed: () => storyProvider.toggleFavorite(story),
+                          onPressed: () =>
+                              onlineMangaProvider.toggleFavorite(manga),
                         ),
                       ],
                     ),
@@ -467,13 +469,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     backgroundImage:
                         _avatarPath != null && File(_avatarPath!).existsSync()
                         ? FileImage(File(_avatarPath!))
-                        : (appUser?.photoUrl != null
-                              ? NetworkImage(appUser!.photoUrl!)
+                        : (appUser?.avatar != null
+                              ? NetworkImage(appUser!.avatar!)
                               : null),
                     child:
                         (_avatarPath == null ||
                                 !File(_avatarPath!).existsSync()) &&
-                            appUser?.photoUrl == null
+                            appUser?.avatar == null
                         ? const Icon(Icons.person, size: 50, color: Colors.grey)
                         : null,
                   ),
@@ -528,7 +530,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 12),
               child: Text(
-                authProvider.currentUser?.email ?? 'Chưa xác thực',
+                authProvider.currentUser?.username ?? 'Chưa xác thực',
                 style: TextStyle(
                   color: Colors.grey[600],
                   fontSize: 14,

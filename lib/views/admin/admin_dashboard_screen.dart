@@ -161,10 +161,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: CircleAvatar(
                   radius: 35,
                   backgroundColor: Colors.white10,
-                  backgroundImage: appUser?.photoUrl != null
-                      ? NetworkImage(appUser!.photoUrl!)
+                  backgroundImage: appUser?.avatar != null
+                      ? NetworkImage(appUser!.avatar!)
                       : null,
-                  child: appUser?.photoUrl == null
+                  child: appUser?.avatar == null
                       ? Icon(
                           Icons.person,
                           size: 35,

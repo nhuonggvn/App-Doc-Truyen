@@ -1,12 +1,9 @@
 // lib/main.dart
-// Điểm vào chính của ứng dụng
+// Điểm vào chính của ứng dụng - đã loại bỏ Firebase
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'firebase_options.dart';
 
 import 'viewmodels/auth_provider.dart';
 import 'viewmodels/story_provider.dart';
@@ -20,13 +17,7 @@ import 'services/image_database_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load biến môi trường từ .env
-  await dotenv.load(fileName: ".env");
-
-  // Khởi tạo Firebase với options
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  // Khởi tạo Hive cho database ảnh
+  // Khởi tạo Hive cho database ảnh local
   await Hive.initFlutter();
   await ImageDatabaseService.init();
 
@@ -40,8 +31,15 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Provider xác thực
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        // Provider xác thực (REST API - không còn Firebase)
+        ChangeNotifierProvider(
+          create: (_) {
+            final auth = AuthProvider();
+            // Tự động khôi phục session từ token đã lưu
+            auth.tryAutoLogin();
+            return auth;
+          },
+        ),
         // Provider truyện local SQLite
         ChangeNotifierProvider(create: (_) => StoryProvider()),
         // Provider truyện online (API)
@@ -54,48 +52,89 @@ class MyApp extends StatelessWidget {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp(
-            title: 'Ứng Dụng Đọc Truyện',
+            title: 'Manga App',
             debugShowCheckedModeBanner: false,
-            // Sử dụng theme và darkTheme cố định, chỉ đổi themeMode
             theme: ThemeProvider.lightTheme,
             darkTheme: ThemeProvider.darkTheme,
-            themeMode:
-                themeProvider.themeMode, // Chỉ đổi mode, không rebuild theme
-            // Builder để full screen background trên desktop/web
-            builder: (context, child) {
-              final isDark = Theme.of(context).brightness == Brightness.dark;
-              return Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: isDark
-                        ? [
-                            const Color(0xFF1A1A2E),
-                            const Color(0xFF16213E),
-                            const Color(0xFF0F3460),
-                          ]
-                        : [
-                            const Color.fromARGB(255, 74, 107, 255),
-                            const Color.fromARGB(255, 111, 63, 158),
-                            const Color.fromARGB(255, 236, 61, 255),
-                          ],
-                  ),
-                ),
-                child: child,
-              );
-            },
+            themeMode: themeProvider.themeMode,
             home: Consumer<AuthProvider>(
               builder: (context, authProvider, child) {
-                // Điều hướng dựa trên trạng thái đăng nhập
+                // Đang khởi tạo: load token từ storage
+                if (authProvider.status == AuthStatus.initializing) {
+                  return const _SplashScreen();
+                }
+
+                // Đã đăng nhập -> vào app chính
                 if (authProvider.isAuthenticated) {
                   return const MainNavigation();
                 }
+
+                // Chưa đăng nhập -> màn hình Auth
                 return const AuthScreen();
               },
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Splash Screen khi app đang kiểm tra token
+// ─────────────────────────────────────────────────────────
+
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Logo
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [colorScheme.primary, colorScheme.tertiary],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.primary.withValues(alpha: 0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.menu_book_rounded,
+                color: Colors.white,
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Manga App',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 32),
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+          ],
+        ),
       ),
     );
   }

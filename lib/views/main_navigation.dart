@@ -11,6 +11,7 @@ import 'my_stories_screen.dart';
 import 'reading_history_screen.dart';
 import 'profile_screen.dart';
 import 'admin/admin_dashboard_screen.dart';
+import '../viewmodels/online_manga_provider.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -21,6 +22,21 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final onlineMangaProvider = context.read<OnlineMangaProvider>();
+        final authProvider = context.read<AuthProvider>();
+        if (authProvider.isAuthenticated) {
+          onlineMangaProvider.loadFavorites();
+          onlineMangaProvider.loadReadingProgress();
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

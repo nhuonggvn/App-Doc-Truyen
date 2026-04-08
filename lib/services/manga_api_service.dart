@@ -22,7 +22,7 @@ class MangaApiService {
       'Accept': 'application/json',
     };
 
-    final token = await CustomAuthService.getToken();
+    final token = await CustomAuthService.getStoredToken();
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
     }
@@ -283,6 +283,139 @@ class MangaApiService {
     } catch (e) {
       debugPrint('❌ Lỗi khi gọi API truyện theo thể loại: $e');
       rethrow;
+    }
+  }
+
+  // ==================== FAVORITES API ====================
+
+  /// Lấy danh sách truyện yêu thích từ Server
+  static Future<List<OnlineManga>> getFavorites({int page = 1}) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/favorites',
+      ).replace(queryParameters: {'page': page.toString()});
+      final headers = await _getHeaders();
+      final response = await http.get(uri, headers: headers).timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        if (jsonData['success'] == true && jsonData['data'] != null) {
+          final items = jsonData['data']['items'] as List?;
+          return items
+                  ?.map((item) => OnlineManga.fromJson(item['manga']))
+                  .toList() ??
+              [];
+        }
+      }
+      return [];
+    } catch (e) {
+      debugPrint('❌ Manga API Lỗi tải danh sách yêu thích: $e');
+      return [];
+    }
+  }
+
+  /// Thêm truyện yêu thích lên Server
+  static Future<bool> addFavorite({
+    required String mangaSlug,
+    String? mangaTitle,
+    String? mangaImage,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      if (!headers.containsKey('Authorization')) return false;
+
+      final body = json.encode({
+        'mangaSlug': mangaSlug,
+        'mangaTitle': mangaTitle ?? '',
+        'mangaImage': mangaImage ?? '',
+      });
+
+      final response = await http
+          .post(Uri.parse('$baseUrl/favorites'), headers: headers, body: body)
+          .timeout(_timeout);
+
+      final jsonData = json.decode(response.body);
+      return response.statusCode == 201 ||
+          (response.statusCode == 200 && jsonData['success'] == true);
+    } catch (e) {
+      debugPrint('❌ Manga API Lỗi thêm yêu thích: $e');
+      return false;
+    }
+  }
+
+  /// Xóa truyện yêu thích khỏi Server
+  static Future<bool> removeFavorite(String mangaSlug) async {
+    try {
+      final headers = await _getHeaders();
+      if (!headers.containsKey('Authorization')) return false;
+
+      final uri = Uri.parse('$baseUrl/favorites/$mangaSlug');
+      final response = await http
+          .delete(uri, headers: headers)
+          .timeout(_timeout);
+
+      final jsonData = json.decode(response.body);
+      return response.statusCode == 200 && jsonData['success'] == true;
+    } catch (e) {
+      debugPrint('❌ Manga API Lỗi xóa yêu thích: $e');
+      return false;
+    }
+  }
+
+  // ==================== READING PROGRESS API ====================
+
+  /// Lấy danh sách lịch sử đọc từ Server
+  static Future<List<Map<String, dynamic>>> getReadingProgress() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http
+          .get(Uri.parse('$baseUrl/progress'), headers: headers)
+          .timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        if (jsonData['success'] == true && jsonData['data'] != null) {
+          return List<Map<String, dynamic>>.from(jsonData['data']);
+        }
+      }
+      return [];
+    } catch (e) {
+      debugPrint('❌ Manga API Lỗi tải lịch sử đọc: $e');
+      return [];
+    }
+  }
+
+  /// Cập nhật tiến độ đọc lên Server
+  static Future<bool> updateReadingProgress({
+    required String mangaSlug,
+    required String chapterApiId,
+    String? mangaTitle,
+    String? mangaImage,
+    String? chapterName,
+    int pageIndex = 0,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      if (!headers.containsKey('Authorization'))
+        return false; // Guest không lưu lịch sử Cloud
+
+      final body = json.encode({
+        'mangaSlug': mangaSlug,
+        'chapterApiId': chapterApiId,
+        'mangaTitle': mangaTitle ?? '',
+        'mangaImage': mangaImage ?? '',
+        'chapterName': chapterName ?? '',
+        'pageIndex': pageIndex,
+      });
+
+      final response = await http
+          .put(Uri.parse('$baseUrl/progress'), headers: headers, body: body)
+          .timeout(_timeout);
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('❌ Manga API Cập nhật tiến độ lỗi: $e');
+      return false;
     }
   }
 }
