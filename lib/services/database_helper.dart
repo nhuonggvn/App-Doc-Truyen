@@ -27,10 +27,10 @@ class DatabaseHelper {
 
   // Khởi tạo database
   Future<Database> _initDatabase() async {
-    String path = join(await getDatabasesPath(), 'stories_database_v4.db');
+    String path = join(await getDatabasesPath(), 'stories_database_v5.db');
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -64,6 +64,14 @@ class DatabaseHelper {
         )
       ''');
     }
+    if (oldVersion < 5) {
+      await db.execute(
+        'ALTER TABLE stories ADD COLUMN is_vip INTEGER DEFAULT 0',
+      );
+      await db.execute(
+        'ALTER TABLE chapters ADD COLUMN is_vip INTEGER DEFAULT 0',
+      );
+    }
   }
 
   // Tạo các bảng
@@ -80,6 +88,7 @@ class DatabaseHelper {
         status TEXT DEFAULT 'Đang cập nhật',
         views_count INTEGER DEFAULT 0,
         is_favorite INTEGER DEFAULT 0,
+        is_vip INTEGER DEFAULT 0,
         created_at TEXT NOT NULL
       )
     ''');
@@ -91,6 +100,7 @@ class DatabaseHelper {
         story_id INTEGER NOT NULL,
         chapter_number INTEGER NOT NULL,
         title TEXT,
+        is_vip INTEGER DEFAULT 0,
         created_at TEXT NOT NULL,
         FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE
       )

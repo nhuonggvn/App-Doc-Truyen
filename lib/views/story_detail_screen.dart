@@ -14,7 +14,8 @@ import '../viewmodels/auth_provider.dart';
 import 'chapter_reading_screen.dart';
 import 'chapter_form_screen.dart';
 import 'member/ad_reward_dialog.dart';
-import 'member/coin_wallet_screen.dart';
+// import 'member/coin_wallet_screen.dart'; // Đã loại bỏ logic xu
+import 'widgets/transaction_feedback.dart';
 
 class StoryDetailScreen extends StatefulWidget {
   final Story story;
@@ -74,6 +75,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final storyProvider = Provider.of<StoryProvider>(context);
+    final authProvider = Provider.of<AuthProvider>(context);
     final currentStory =
         storyProvider.getStoryById(widget.story.id!) ?? widget.story;
     final chapters = storyProvider.currentChapters;
@@ -255,14 +257,14 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                           label: const Text('Đọc từ đầu'),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton.tonalIcon(
-                          onPressed: () => _addNewChapter(),
-                          icon: const Icon(Icons.add),
-                          label: const Text('Thêm chương'),
+                      if (authProvider.isAdmin || authProvider.isEditor)
+                        Expanded(
+                          child: FilledButton.tonalIcon(
+                            onPressed: () => _addNewChapter(),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Thêm chương'),
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -634,54 +636,107 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   }
 
   Future<void> _handleReadChapter(Chapter chapter, int index) async {
-    // Giả lập: index >= 5 là VIP
-    final bool isVip = index >= 5;
+    final bool isVipChapter = index >= 5;
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-    // 1. GUEST: Chưa đăng nhập
-    if (!authProvider.isAuthenticated) {
-      if (isVip) {
-        _showLoginRequiredDialog();
-        return;
-      } else {
-        // Free -> read with Ads
-        _watchAdAndRead(chapter);
-        return;
-      }
-    }
-
-    // 2. VIP (Admin & Editor): Đọc miễn phí nội dung VIP, không quảng cáo
+    // 1. Quản trị viên & Biên tập viên: Quyền tối thượng, không QC
     if (authProvider.isAdmin || authProvider.isEditor) {
       _navigateToReadingScreen(chapter);
       return;
     }
 
-    // 3. MEMBER: Đã tải khoản thường
-    if (isVip) {
-      if (authProvider.coins >= 1) {
-        // Tốn 1 xu và VẪN xem quảng cáo theo flow yêu cầu
-        final success = await authProvider.spendCoinsForChapter();
-        if (success) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⚡ Đã trừ 1 xu để mở khóa chương VIP.'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-          _watchAdAndRead(chapter);
-        } else {
-          _showInsufficientFundsBottomSheet();
-        }
-      } else {
-        // Tài khoản không đủ xu
-        _showInsufficientFundsBottomSheet();
-      }
+    // 2. Hội viên Premium: Đọc mọi thứ không QC
+    if (authProvider.isAuthenticated && authProvider.currentUser!.isVip) {
+      _navigateToReadingScreen(chapter);
+      return;
+    }
+
+    // 3. Độc giả bình thường (Chưa đăng nhập hoặc Member thường)
+    if (isVipChapter) {
+      // Chương VIP yêu cầu đăng ký Premium
+      _showPremiumRequiredBottomSheet();
     } else {
-      // Chương free -> Chỉ xem Ads
+      // Chương Free -> Phải xem quảng cáo
       _watchAdAndRead(chapter);
     }
+  }
+
+  void _showPremiumRequiredBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 32),
+            const Icon(
+              Icons.workspace_premium_rounded,
+              size: 80,
+              color: Colors.amber,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Nội dung dành cho Premium',
+              style: Theme.of(
+                ctx,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Chương này thuộc danh sách đặc quyền dành riêng cho Hội viên Premium. Đăng ký ngay để trải nghiệm đọc không giới hạn và không quảng cáo.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 15,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 32),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Tính năng đăng ký Premium đang được phát triển...',
+                    ),
+                  ),
+                );
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF1A1A2E),
+                minimumSize: const Size(double.infinity, 56),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text(
+                'ĐĂNG KÝ PREMIUM NGAY',
+                style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _watchAdAndRead(Chapter chapter) async {
@@ -689,13 +744,11 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     if (adResult == AdRewardResult.rewarded && mounted) {
       _navigateToReadingScreen(chapter);
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '❌ Bạn chưa xem hết quảng cáo nên không thể đọc chương.',
-          ),
-          backgroundColor: Colors.red,
-        ),
+      TransactionFeedback.show(
+        context,
+        title: 'Lỗi phát quảng cáo',
+        message: '❌ Bạn chưa xem hết quảng cáo nên không thể đọc chương.',
+        isSuccess: false,
       );
     }
   }
@@ -710,180 +763,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     );
   }
 
-  void _showInsufficientFundsBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          left: 20,
-          right: 20,
-          top: 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 50,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Icon(
-              Icons.account_balance_wallet_outlined,
-              size: 60,
-              color: Colors.orange,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Bạn đã hết Xu!',
-              style: Theme.of(ctx).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.orange.shade800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Vui lòng nạp thêm Xu hoặc xem video quảng cáo để mở khóa chương VIP này tiếp tục cuộc hành trình.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade700),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.deepOrange, // Vibrant Orange/Red
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                onPressed: () {
-                  Navigator.pop(ctx); // Đóng BottomSheet
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const CoinWalletScreen()),
-                  );
-                },
-                icon: const Icon(Icons.payment),
-                label: const Text(
-                  'Nạp Xu (Qua VNPay)',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.blue.shade300, width: 1.5),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  _watchAdForCoin();
-                },
-                icon: const Icon(Icons.play_circle_fill, color: Colors.blue),
-                label: const Text(
-                  'Xem Video Quảng Cáo (+1 Lượt)',
-                  style: TextStyle(
-                    color: Colors.blue,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 48), // Padding an toàn đẩy lên
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _watchAdForCoin() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(
-        child: Material(
-          color: Colors.transparent,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: Colors.blue),
-              SizedBox(height: 16),
-              Text(
-                'Đang nhận thưởng quảng cáo...',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    // Thời gian chờ mô phỏng ad
-    await Future.delayed(const Duration(seconds: 3));
-
-    if (!mounted) return;
-    Navigator.pop(context); // Đóng Dialog Loading
-
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    await authProvider.purchaseCoins(1);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('🎉 Nhận thành công +1 Xu từ việc xem quảng cáo!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
-  }
-
-  void _showLoginRequiredDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.lock, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Chương VIP'),
-          ],
-        ),
-        content: const Text('Vui lòng đăng nhập để đọc truyện VIP.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Huỷ', style: TextStyle(color: Colors.grey)),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-            },
-            child: const Text('Đã hiểu'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Logic Xu và Nạp tiền đã được loại bỏ.
 
   void _addNewChapter() {
     Navigator.push(

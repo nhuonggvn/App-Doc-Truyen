@@ -32,6 +32,7 @@ class _StoryFormScreenState extends State<StoryFormScreen> {
   String? _existingCoverPath;
   String _selectedStatus = 'Đang cập nhật';
   bool _isLoading = false;
+  bool _isVip = false;
   List<Chapter> _chapters = [];
 
   bool get isEditing => widget.story != null;
@@ -52,6 +53,7 @@ class _StoryFormScreenState extends State<StoryFormScreen> {
       _genresController.text = widget.story!.genres.join(', ');
       _selectedStatus = widget.story!.status;
       _existingCoverPath = widget.story!.coverImage;
+      _isVip = widget.story!.isVip;
 
       // Tải danh sách chapters
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -221,6 +223,7 @@ class _StoryFormScreenState extends State<StoryFormScreen> {
         status: _selectedStatus,
         viewsCount: widget.story?.viewsCount ?? 0,
         isFavorite: widget.story?.isFavorite ?? false,
+        isVip: _isVip,
         createdAt: widget.story?.createdAt,
       );
 
@@ -387,6 +390,28 @@ class _StoryFormScreenState extends State<StoryFormScreen> {
               ),
               const SizedBox(height: 16),
 
+              // Là truyện VIP
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Row(
+                  children: [
+                    Icon(Icons.workspace_premium, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text('Truyện Cao Cấp (VIP)'),
+                  ],
+                ),
+                subtitle: const Text(
+                  'Người đọc cần phải mở khoá truyện tính phí.',
+                ),
+                value: _isVip,
+                onChanged: (val) {
+                  setState(() {
+                    _isVip = val;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+
               // Mô tả
               TextFormField(
                 controller: _descriptionController,
@@ -521,9 +546,25 @@ class _StoryFormScreenState extends State<StoryFormScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    chapter.displayTitle,
-                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  Row(
+                    children: [
+                      if (chapter.isVip)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 6),
+                          child: Icon(
+                            Icons.lock_person,
+                            size: 16,
+                            color: Colors.orange,
+                          ),
+                        ),
+                      Expanded(
+                        child: Text(
+                          chapter.displayTitle,
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(

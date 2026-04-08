@@ -80,6 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+
       body: RefreshIndicator(
         onRefresh: () => storyProvider.loadStories(),
         child: storyProvider.isLoading

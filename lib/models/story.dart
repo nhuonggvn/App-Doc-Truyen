@@ -11,6 +11,7 @@ class Story {
   final String status; // Trạng thái: Đang cập nhật, Hoàn thành
   final int viewsCount;
   final bool isFavorite;
+  final bool isVip; // Truyện tính phí/VIP
   final DateTime createdAt;
 
   Story({
@@ -23,6 +24,7 @@ class Story {
     this.status = 'Đang cập nhật',
     this.viewsCount = 0,
     this.isFavorite = false,
+    this.isVip = false, // Mặc định là truyện miễn phí
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -38,6 +40,7 @@ class Story {
       'status': status,
       'views_count': viewsCount,
       'is_favorite': isFavorite ? 1 : 0,
+      'is_vip': isVip ? 1 : 0,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -55,6 +58,7 @@ class Story {
       status: map['status'] as String? ?? 'Đang cập nhật',
       viewsCount: map['views_count'] as int? ?? 0,
       isFavorite: (map['is_favorite'] as int?) == 1,
+      isVip: (map['is_vip'] as int?) == 1,
       createdAt: DateTime.parse(map['created_at'] as String),
     );
   }
@@ -70,6 +74,7 @@ class Story {
     String? status,
     int? viewsCount,
     bool? isFavorite,
+    bool? isVip,
     DateTime? createdAt,
   }) {
     return Story(
@@ -82,6 +87,7 @@ class Story {
       status: status ?? this.status,
       viewsCount: viewsCount ?? this.viewsCount,
       isFavorite: isFavorite ?? this.isFavorite,
+      isVip: isVip ?? this.isVip,
       createdAt: createdAt ?? this.createdAt,
     );
   }

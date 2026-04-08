@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/online_manga.dart';
+import 'custom_auth_service.dart';
 
 /// Service xử lý tất cả các HTTP request tới Manga API
 class MangaApiService {
@@ -13,6 +14,21 @@ class MangaApiService {
 
   // Thời gian chờ tối đa cho mỗi request (giây)
   static const Duration _timeout = Duration(seconds: 15);
+
+  /// Header mặc định kèm Token nếu có
+  static Future<Map<String, String>> _getHeaders() async {
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+
+    final token = await CustomAuthService.getToken();
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    return headers;
+  }
 
   /// Lấy danh sách truyện (Trang chủ Online)
   /// [type] - Loại danh sách: truyen-moi, sap-ra-mat, dang-phat-hanh, hoan-thanh
@@ -39,7 +55,8 @@ class MangaApiService {
       ).replace(queryParameters: queryParams);
       debugPrint('🌐 Đang gọi API: $uri');
 
-      final response = await http.get(uri).timeout(_timeout);
+      final headers = await _getHeaders();
+      final response = await http.get(uri, headers: headers).timeout(_timeout);
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
@@ -82,7 +99,8 @@ class MangaApiService {
       final uri = Uri.parse('$baseUrl/manga/$slug');
       debugPrint('🌐 Đang gọi API chi tiết: $uri');
 
-      final response = await http.get(uri).timeout(_timeout);
+      final headers = await _getHeaders();
+      final response = await http.get(uri, headers: headers).timeout(_timeout);
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
@@ -114,7 +132,8 @@ class MangaApiService {
       final uri = Uri.parse('$baseUrl/manga/chapter/$chapterId');
       debugPrint('🌐 Đang gọi API chapter: $uri');
 
-      final response = await http.get(uri).timeout(_timeout);
+      final headers = await _getHeaders();
+      final response = await http.get(uri, headers: headers).timeout(_timeout);
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
@@ -157,7 +176,8 @@ class MangaApiService {
       ).replace(queryParameters: {'query': query});
       debugPrint('🌐 Đang tìm kiếm: $uri');
 
-      final response = await http.get(uri).timeout(_timeout);
+      final headers = await _getHeaders();
+      final response = await http.get(uri, headers: headers).timeout(_timeout);
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
@@ -186,7 +206,8 @@ class MangaApiService {
       final uri = Uri.parse('$baseUrl/manga/categories');
       debugPrint('🌐 Đang gọi API thể loại: $uri');
 
-      final response = await http.get(uri).timeout(_timeout);
+      final headers = await _getHeaders();
+      final response = await http.get(uri, headers: headers).timeout(_timeout);
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
@@ -230,7 +251,8 @@ class MangaApiService {
       ).replace(queryParameters: queryParams);
       debugPrint('🌐 Đang gọi API thể loại $categorySlug: $uri');
 
-      final response = await http.get(uri).timeout(_timeout);
+      final headers = await _getHeaders();
+      final response = await http.get(uri, headers: headers).timeout(_timeout);
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);

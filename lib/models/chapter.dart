@@ -6,6 +6,7 @@ class Chapter {
   final int storyId;
   final int chapterNumber;
   final String? title;
+  final bool isVip; // Chương tính phí
   final DateTime createdAt;
   final List<ChapterImage> images; // Danh sách ảnh trong chapter
 
@@ -14,6 +15,7 @@ class Chapter {
     required this.storyId,
     required this.chapterNumber,
     this.title,
+    this.isVip = false,
     DateTime? createdAt,
     this.images = const [],
   }) : createdAt = createdAt ?? DateTime.now();
@@ -25,6 +27,7 @@ class Chapter {
       'story_id': storyId,
       'chapter_number': chapterNumber,
       'title': title,
+      'is_vip': isVip ? 1 : 0,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -39,6 +42,7 @@ class Chapter {
       storyId: map['story_id'] as int,
       chapterNumber: map['chapter_number'] as int,
       title: map['title'] as String?,
+      isVip: (map['is_vip'] as int?) == 1,
       createdAt: DateTime.parse(map['created_at'] as String),
       images: images ?? [],
     );
@@ -50,6 +54,7 @@ class Chapter {
     int? storyId,
     int? chapterNumber,
     String? title,
+    bool? isVip,
     DateTime? createdAt,
     List<ChapterImage>? images,
   }) {
@@ -58,6 +63,7 @@ class Chapter {
       storyId: storyId ?? this.storyId,
       chapterNumber: chapterNumber ?? this.chapterNumber,
       title: title ?? this.title,
+      isVip: isVip ?? this.isVip,
       createdAt: createdAt ?? this.createdAt,
       images: images ?? this.images,
     );

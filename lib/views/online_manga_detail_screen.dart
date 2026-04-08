@@ -436,49 +436,39 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
     );
   }
 
-  /// Mở trang đọc chapter (kiểm tra phân quyền, quảng cáo, trừ xu)
+  /// Mở trang đọc chapter (Premium & Subscriptions)
   Future<void> _openChapter(
     OnlineChapter chapter,
     String mangaTitle,
     bool isFree,
   ) async {
-    // Nếu là chapter Free -> Chuyển sang trang đọc luôn
-    if (isFree) {
-      _navigateToReadingScreen(chapter, mangaTitle);
-      return;
-    }
-
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-    // Quyền đặc biệt: Admin và Editor không quan tâm Premium, đọc thả ga
+    // 1. Quản trị viên & Biên tập viên: Quyền tối thượng
     if (authProvider.isAdmin || authProvider.isEditor) {
       _navigateToReadingScreen(chapter, mangaTitle);
       return;
     }
 
-    // Nếu VIP (có >= 1 xu), duyệt thẳng và tự trừ xu nền
-    if (authProvider.hasCoins) {
-      final success = await authProvider.spendCoinsForChapter();
-      if (success) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              '⚡ Đã trừ 1 xu để đọc chương Premium. (Không quảng cáo)',
-            ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-        _navigateToReadingScreen(chapter, mangaTitle);
-        return;
-      }
+    // 2. Hội viên Premium: Đọc mọi thứ
+    if (authProvider.isAuthenticated && authProvider.currentUser!.isVip) {
+      _navigateToReadingScreen(chapter, mangaTitle);
+      return;
     }
 
-    // Guest hoặc Member hết xu sẽ phải xem quảng cáo mới được vào
+    // 3. Chapter Free: Luôn phải xem quảng cáo
+    if (isFree) {
+      final adResult = await AdRewardDialog.show(context);
+      if (adResult == AdRewardResult.rewarded && mounted) {
+        _navigateToReadingScreen(chapter, mangaTitle);
+      }
+      return;
+    }
+
+    // 4. Chapter Premium: Yêu cầu đăng ký
     if (!mounted) return;
 
-    final shouldWatchAd = await showDialog<bool>(
+    showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Row(
@@ -491,44 +481,24 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
             ),
           ],
         ),
-        content: Text(
-          authProvider.isAuthenticated
-              ? 'Số dư xu của bạn không đủ.\nHãy nạp thẻ hoặc Xem video quảng cáo (5s) để mở khóa chương này.'
-              : 'Bạn cần Đăng nhập và nạp xu, hoặc \nXem quảng cáo (5s) để đọc miễn phí chương này.',
+        content: const Text(
+          'Chương này chỉ dành cho Hội viên Premium. Hãy đăng ký ngay để đọc không giới hạn và loại bỏ quảng cáo.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Huỷ', style: TextStyle(color: Colors.grey)),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng', style: TextStyle(color: Colors.grey)),
           ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(context, true),
-            icon: const Icon(Icons.play_circle_outline),
-            label: const Text('Xem quảng cáo'),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // Chuyển sang màn hình Profile hoặc nạp Premium
+            },
+            child: const Text('Tìm hiểu Premium'),
           ),
         ],
       ),
     );
-
-    if (shouldWatchAd != true || !mounted) return;
-
-    // Xem quảng cáo 5s giả lập
-    final adResult = await AdRewardDialog.show(context);
-
-    if (adResult == AdRewardResult.rewarded && mounted) {
-      // Đã xem xong, cho vào đọc
-      _navigateToReadingScreen(chapter, mangaTitle);
-    } else if (mounted) {
-      // Bị skip
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '❌ Bạn chưa xem hết quảng cáo nên không thể mở khoá chương.',
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
   }
 
   // Điều hướng thực sự tới màn hình đọc

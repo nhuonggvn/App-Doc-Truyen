@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/app_user.dart';
 import '../services/firestore_service.dart';
+import '../services/custom_auth_service.dart';
 
 /// Provider quản lý toàn bộ trạng thái xác thực và phân quyền
 class AuthProvider with ChangeNotifier {
@@ -31,6 +32,12 @@ class AuthProvider with ChangeNotifier {
   /// Kiểm tra đã đăng nhập chưa
   bool get isAuthenticated => _currentUser != null;
 
+  /// Kiểm tra user có phải cấp Quản lý (Admin/Editor) không
+  bool get isManager => _currentUser?.authSource == AuthSource.custom;
+
+  /// Token JWT (nếu có - chỉ dành cho Manager)
+  String? get managerToken => _currentUser?.token;
+
   /// Kiểm tra đang loading không
   bool get isLoading => _isLoading;
 
@@ -47,8 +54,9 @@ class AuthProvider with ChangeNotifier {
   bool get isEditor =>
       currentRole == UserRole.editor || currentRole == UserRole.admin;
 
-  /// Kiểm tra có phải member (đã đăng nhập, không kể role) không
-  bool get isMember => isAuthenticated;
+  /// Kiểm tra có phải member (đã đăng nhập qua Firebase) không
+  bool get isMember =>
+      isAuthenticated && _currentUser?.authSource == AuthSource.firebase;
 
   /// Số xu hiện tại của user
   int get coins => _currentUser?.coins ?? 0;
@@ -59,20 +67,38 @@ class AuthProvider with ChangeNotifier {
   // ==================== KHỞI TẠO ====================
 
   AuthProvider() {
-    // Lắng nghe thay đổi trạng thái đăng nhập từ Firebase Auth
+    _initAuth();
+  }
+
+  Future<void> _initAuth() async {
+    // 1. Kiểm tra xem có token Admin cũ không (Persistence cho Manager)
+    final savedToken = await CustomAuthService.getToken();
+    if (savedToken != null) {
+      final managerData = await CustomAuthService.getMe();
+      if (managerData != null) {
+        _currentUser = AppUser.fromCustomApi(managerData, savedToken);
+        notifyListeners();
+        debugPrint('✅ Auth: Khôi phục session Manager thành công (Custom BE)');
+        return; // Ưu tiên session Manager
+      }
+    }
+
+    // 2. Lắng nghe thay đổi trạng thái đăng nhập từ Firebase Auth (Cho Member)
     _firebaseAuth.authStateChanges().listen((User? firebaseUser) async {
+      // Nếu đang có session Manager thì không ghi đè bởi Firebase Guest state
+      if (isManager) return;
+
       // Huỷ stream cũ nếu có
       await _userStreamSubscription?.cancel();
 
       if (firebaseUser == null) {
-        // Người dùng đã đăng xuất
         _currentUser = null;
         notifyListeners();
-        debugPrint('ℹ️ Auth: Người dùng chưa đăng nhập (Guest)');
+        debugPrint('ℹ️ Auth: Firebase - Người dùng chưa đăng nhập (Guest)');
         return;
       }
 
-      // Đăng nhập thành công - lắng nghe Firestore real-time để tự cập nhật xuất/vào role và coin
+      // Đăng nhập Firebase thành công - lắng nghe Firestore real-time
       _userStreamSubscription =
           FirestoreService.watchUser(
             firebaseUser.uid,
@@ -83,7 +109,7 @@ class AuthProvider with ChangeNotifier {
             _currentUser = appUser;
             notifyListeners();
             debugPrint(
-              '♻️ Auth: Cập nhật user từ Firestore - role=${appUser?.role}, coins=${appUser?.coins}',
+              '♻️ Auth: Member cập từ Firestore - role=${appUser?.role}',
             );
           });
     });
@@ -95,9 +121,48 @@ class AuthProvider with ChangeNotifier {
     super.dispose();
   }
 
-  // ==================== ĐĂNG NHẬP EMAIL ====================
+  // ==================== ĐĂNG NHẬP MANAGER (ADMIN/EDITOR) ====================
 
-  /// Đăng nhập bằng email và mật khẩu
+  /// Đăng nhập Admin/Editor qua Custom BE API
+  Future<bool> loginAsManager(String email, String password) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final result = await CustomAuthService.loginManager(email, password);
+
+      if (result != null) {
+        final userData = result['user'] as Map<String, dynamic>;
+        final token = result['token'] as String;
+
+        // Tạo AppUser từ API data
+        _currentUser = AppUser.fromCustomApi(userData, token);
+
+        // Nếu đang login Firebase, hãy logout Firebase để tránh nhầm lẫn
+        if (_firebaseAuth.currentUser != null) {
+          await _firebaseAuth.signOut();
+        }
+
+        _isLoading = false;
+        notifyListeners();
+        debugPrint('✅ Auth: Login Manager thành công (Custom BE)');
+        return true;
+      } else {
+        _errorMessage = 'Đăng nhập thất bại. Kiểm tra lại email/mật khẩu.';
+      }
+    } catch (e) {
+      _errorMessage = 'Lỗi kết nối tới máy chủ quản trị.';
+      debugPrint('❌ Auth Error: $e');
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+  // ==================== ĐĂNG NHẬP MEMBER (FIREBASE) ====================
+
+  /// Đăng nhập bằng email và mật khẩu qua Firebase
   Future<bool> login(String email, String password) async {
     _isLoading = true;
     _errorMessage = null;
@@ -109,11 +174,9 @@ class AuthProvider with ChangeNotifier {
         password: password,
       );
 
-      // Kiểm tra tài khoản có bị khoá trong Firestore không
       if (credential.user != null) {
         final user = await FirestoreService.getUserById(credential.user!.uid);
         if (user != null && user.isDisabled) {
-          // Tài khoản bị khoá - đăng xuất ngay
           await _firebaseAuth.signOut();
           _errorMessage =
               'Tài khoản của bạn đã bị khoá. Liên hệ quản trị viên.';
@@ -126,7 +189,7 @@ class AuthProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       debugPrint(
-        '✅ Auth: Đăng nhập email thành công - ${credential.user?.email}',
+        '✅ Auth: Đăng nhập Member thành công - ${credential.user?.email}',
       );
       return true;
     } on FirebaseAuthException catch (e) {
@@ -136,15 +199,13 @@ class AuthProvider with ChangeNotifier {
       return false;
     } catch (e) {
       _isLoading = false;
-      _errorMessage = 'Đã xảy ra lỗi không mong muốn. Vui lòng thử lại.';
+      _errorMessage = 'Đã xảy ra lỗi không mong muốn.';
       notifyListeners();
       return false;
     }
   }
 
-  // ==================== ĐĂNG KÝ EMAIL ====================
-
-  /// Đăng ký tài khoản mới bằng email
+  /// Đăng ký tài khoản mới qua Firebase
   Future<bool> register(
     String email,
     String password, {
@@ -161,12 +222,10 @@ class AuthProvider with ChangeNotifier {
       );
 
       if (credential.user != null) {
-        // Cập nhật tên hiển thị nếu có
         if (displayName != null && displayName.isNotEmpty) {
           await credential.user!.updateDisplayName(displayName);
         }
 
-        // Tạo document Firestore với role mặc định là member
         await FirestoreService.createUserDocument(
           credential.user!.uid,
           email: email.trim(),
@@ -177,7 +236,6 @@ class AuthProvider with ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
-      debugPrint('✅ Auth: Đăng ký thành công - $email');
       return true;
     } on FirebaseAuthException catch (e) {
       _isLoading = false;
@@ -186,13 +244,11 @@ class AuthProvider with ChangeNotifier {
       return false;
     } catch (e) {
       _isLoading = false;
-      _errorMessage = 'Đã xảy ra lỗi khi đăng ký. Vui lòng thử lại.';
+      _errorMessage = 'Đã xảy ra lỗi khi đăng ký.';
       notifyListeners();
       return false;
     }
   }
-
-  // ==================== ĐĂNG NHẬP GOOGLE ====================
 
   /// Đăng nhập bằng tài khoản Google (dành cho Member)
   Future<bool> signInWithGoogle() async {
@@ -201,33 +257,25 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Mở Google Sign-In Dialog
       final GoogleSignInAccount? googleAccount = await _googleSignIn.signIn();
-
       if (googleAccount == null) {
-        // Người dùng bấm Cancel
         _isLoading = false;
         notifyListeners();
-        debugPrint('ℹ️ Auth: Người dùng huỷ đăng nhập Google');
         return false;
       }
 
-      // Lấy credentials từ Google
       final GoogleSignInAuthentication googleAuth =
           await googleAccount.authentication;
-
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // Đăng nhập vào Firebase bằng credentials Google
       final userCredential = await _firebaseAuth.signInWithCredential(
         credential,
       );
 
       if (userCredential.user != null) {
-        // Tạo document Firestore nếu lần đầu đăng nhập
         await FirestoreService.createUserDocument(
           userCredential.user!.uid,
           email: userCredential.user!.email ?? '',
@@ -239,9 +287,6 @@ class AuthProvider with ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
-      debugPrint(
-        '✅ Auth: Đăng nhập Google thành công - ${userCredential.user?.email}',
-      );
       return true;
     } on FirebaseAuthException catch (e) {
       _isLoading = false;
@@ -250,23 +295,30 @@ class AuthProvider with ChangeNotifier {
       return false;
     } catch (e) {
       _isLoading = false;
-      _errorMessage = 'Đăng nhập Google thất bại. Vui lòng thử lại.';
+      _errorMessage = 'Đăng nhập Google thất bại.';
       notifyListeners();
-      debugPrint('❌ Auth: Lỗi đăng nhập Google: $e');
       return false;
     }
   }
 
   // ==================== ĐĂNG XUẤT ====================
 
-  /// Đăng xuất khỏi hệ thống (cả Firebase và Google)
+  /// Đăng xuất khỏi hệ thống (cả Firebase và Custom BE)
   Future<void> logout() async {
     try {
-      // Đăng xuất Google nếu đang dùng
-      if (await _googleSignIn.isSignedIn()) {
-        await _googleSignIn.signOut();
+      if (isManager) {
+        // Đăng xuất Manager (Custom BE)
+        await CustomAuthService.clearToken();
+        debugPrint('✅ Auth: Đã xóa token Admin');
+      } else {
+        // Đăng xuất Member (Firebase/Google)
+        if (await _googleSignIn.isSignedIn()) {
+          await _googleSignIn.signOut();
+        }
+        await _firebaseAuth.signOut();
       }
-      await _firebaseAuth.signOut();
+
+      await _userStreamSubscription?.cancel();
       _currentUser = null;
       debugPrint('✅ Auth: Đã đăng xuất thành công');
     } catch (e) {
@@ -275,48 +327,9 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // ==================== QUẢN LÝ XU ====================
-
-  /// Nạp xu giả lập (Mock VNPay)
-  /// [packageIndex] - Chỉ số gói nạp (0 = 10 xu, 1 = 50 xu, 2 = 120 xu)
-  Future<bool> purchaseCoins(int coinAmount) async {
-    if (_currentUser == null) {
-      _errorMessage = 'Vui lòng đăng nhập để nạp xu.';
-      notifyListeners();
-      return false;
-    }
-
-    _isLoading = true;
-    notifyListeners();
-
-    // Giả lập delay thanh toán VNPay (3 giây)
-    await Future.delayed(const Duration(seconds: 3));
-
-    final success = await FirestoreService.addCoins(
-      _currentUser!.uid,
-      coinAmount,
-    );
-
-    _isLoading = false;
-
-    if (!success) {
-      _errorMessage = 'Nạp xu thất bại. Vui lòng thử lại.';
-    }
-
-    notifyListeners();
-    return success;
-  }
-
-  /// Trừ xu để đọc truyện Premium (1 xu/chapter)
-  Future<bool> spendCoinsForChapter() async {
-    if (_currentUser == null) return false;
-    if (!hasCoins) {
-      debugPrint('⚠️ Auth: User không đủ xu để đọc');
-      return false;
-    }
-
-    return await FirestoreService.spendCoins(_currentUser!.uid, 1);
-  }
+  // ==================== QUẢN LÝ SUBSCRIPTION ====================
+  // Logic cũ về Xu và VNPay đã bị xóa.
+  // Các tính năng Subscription sẽ được tích hợp ở Phase tiếp theo.
 
   // ==================== TIỆN ÍCH ADMIN ====================
 
@@ -338,6 +351,16 @@ class AuthProvider with ChangeNotifier {
       return false;
     }
     return await FirestoreService.toggleUserDisabled(uid, disable);
+  }
+
+  /// Cập nhật trạng thái VIP của user (chỉ Admin)
+  Future<bool> updateUserVipStatus(String uid, bool isVip) async {
+    if (!isAdmin) {
+      _errorMessage = 'Bạn không có quyền thực hiện hành động này.';
+      notifyListeners();
+      return false;
+    }
+    return await FirestoreService.updateUserVipStatus(uid, isVip);
   }
 
   // ==================== XÓA LỖI ====================

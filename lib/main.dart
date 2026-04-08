@@ -12,6 +12,7 @@ import 'viewmodels/auth_provider.dart';
 import 'viewmodels/story_provider.dart';
 import 'viewmodels/theme_provider.dart';
 import 'viewmodels/online_manga_provider.dart';
+import 'viewmodels/admin_provider.dart';
 import 'views/auth_screen.dart';
 import 'views/main_navigation.dart';
 import 'services/image_database_service.dart';
@@ -47,6 +48,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => OnlineMangaProvider()),
         // Provider giao diện
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        // Provider thống kê hệ thống (Admin)
+        ChangeNotifierProvider(create: (_) => AdminProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {

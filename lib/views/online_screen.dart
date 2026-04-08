@@ -100,6 +100,7 @@ class _OnlineScreenState extends State<OnlineScreen> {
           ),
         ],
       ),
+
       body: Column(
         children: [
           // Thanh bộ lọc loại truyện (chỉ hiện khi không tìm kiếm)
@@ -290,49 +291,31 @@ class _OnlineScreenState extends State<OnlineScreen> {
 
   /// Card hiển thị một truyện trong lưới
   Widget _buildMangaCard(OnlineManga manga) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: () => _openMangaDetail(manga),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Ảnh bìa truyện
-            Expanded(
-              flex: 5,
+    return InkWell(
+      onTap: () => _openMangaDetail(manga),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Box ảnh bìa - Ôm trọn hình ảnh
+          Expanded(
+            child: Card(
+              clipBehavior: Clip.antiAlias,
+              margin: EdgeInsets.zero,
+              elevation: 3,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
                   // Ảnh từ URL
                   _buildNetworkImage(manga.image),
 
-                  // Gradient overlay ở dưới
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: Container(
-                      height: 40,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.6),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
                   // Badge trạng thái
                   if (manga.status != null)
                     Positioned(
-                      top: 6,
-                      left: 6,
+                      top: 8,
+                      left: 8,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -347,155 +330,160 @@ class _OnlineScreenState extends State<OnlineScreen> {
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
                     ),
+
+                  // Gradient overlay nhẹ ở dưới để tên truyện (nếu nằm trên ảnh) dễ đọc
+                  // Nhưng hiện tại tên truyện nằm ngoài nên bỏ gradient busy này
                 ],
               ),
             ),
+          ),
 
-            // Tên truyện và số chương
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
+          // Tên truyện và số chương - Dời ra ngoài box
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 10, 4, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  manga.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
                   children: [
-                    // Tên truyện - chỉ hiển thị 1 dòng, nếu dài thì thêm "..."
-                    Flexible(
-                      child: Text(
-                        manga.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    Icon(
+                      Icons.menu_book,
+                      size: 12,
+                      color: Theme.of(context).colorScheme.outline,
                     ),
-                    const SizedBox(height: 4),
-                    // Số chương
-                    Flexible(
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.menu_book,
-                            size: 14,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              '${manga.chapterCount} chương',
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                            ),
-                          ),
-                        ],
+                    const SizedBox(width: 4),
+                    Text(
+                      '${manga.chapterCount} chương',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                        fontSize: 11,
                       ),
                     ),
                   ],
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   /// Item hiển thị một truyện trong kết quả tìm kiếm
   Widget _buildSearchResultItem(OnlineManga manga) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      margin: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: () => _openMangaDetail(manga),
-        child: SizedBox(
-          height: 120,
-          child: Row(
-            children: [
-              // Ảnh bìa
-              SizedBox(width: 85, child: _buildNetworkImage(manga.image)),
+    return InkWell(
+      onTap: () => _openMangaDetail(manga),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Ảnh bìa
+            SizedBox(
+              width: 90,
+              height: 120,
+              child: Card(
+                clipBehavior: Clip.antiAlias,
+                margin: EdgeInsets.zero,
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: _buildNetworkImage(manga.image),
+              ),
+            ),
 
-              // Thông tin truyện
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          manga.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
+            // Thông tin truyện - Nằm ngoài box
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      manga.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
                       ),
-                      const SizedBox(height: 8),
-                      // Số chương
-                      Flexible(
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.menu_book,
-                              size: 12,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                '${manga.chapterCount} chương',
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Số chương
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.menu_book,
+                          size: 14,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${manga.chapterCount} chương',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.outline,
                               ),
-                            ),
-                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (manga.status != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(
+                            manga.status!,
+                          ).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: _getStatusColor(manga.status!),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          manga.status!,
+                          style: TextStyle(
+                            color: _getStatusColor(manga.status!),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      if (manga.status != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _getStatusColor(manga.status!),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            manga.status!,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
+            ),
 
-              // Mũi tên
-              const Padding(
-                padding: EdgeInsets.only(right: 8),
-                child: Icon(Icons.chevron_right),
+            // Icon điều hướng
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: Theme.of(context).colorScheme.outline,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

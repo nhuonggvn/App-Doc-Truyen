@@ -13,7 +13,7 @@ import '../viewmodels/story_provider.dart';
 import '../viewmodels/theme_provider.dart';
 import 'auth_screen.dart';
 import 'story_detail_screen.dart';
-import 'member/coin_wallet_screen.dart';
+// import 'member/coin_wallet_screen.dart'; // Đã loại bỏ logic nạp tiền
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -140,199 +140,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
     final themeProvider = Provider.of<ThemeProvider>(context);
     final storyProvider = Provider.of<StoryProvider>(context);
+    final isManager = authProvider.currentUser?.authSource == AuthSource.custom;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Hồ Sơ')),
+      // Không hardcode màu nền - tự lấy từ Theme (trắng sáng / đen tối)
+      appBar: AppBar(
+        title: const Text('Hồ Sơ'),
+        centerTitle: true,
+        // Không hardcode: tự lấy theo AppBarTheme
+        actions: [
+          IconButton(
+            onPressed: _logout,
+            icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+          ),
+        ],
+      ),
+
       body: ListView(
         children: [
-          // Header với thông tin user
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Theme.of(context).colorScheme.primaryContainer,
-                  Theme.of(context).colorScheme.surface,
-                ],
-              ),
-            ),
-            child: Column(
-              children: [
-                // Avatar với nút chỉnh sửa
-                GestureDetector(
-                  onTap: _pickAvatar,
-                  child: Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        backgroundImage:
-                            _avatarPath != null &&
-                                File(_avatarPath!).existsSync()
-                            ? FileImage(File(_avatarPath!))
-                            : null,
-                        child:
-                            _avatarPath == null ||
-                                !File(_avatarPath!).existsSync()
-                            ? Icon(
-                                Icons.person,
-                                size: 50,
-                                color: Theme.of(context).colorScheme.onPrimary,
-                              )
-                            : null,
-                      ),
-                      // Nút chỉnh sửa avatar
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF03DAC6), // Xanh ngọc cố định
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.camera_alt,
-                            size: 18,
-                            color: Color(0xFF1F1F1F), // Tối cố định
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Tên hiển thị với nút chỉnh sửa
-                GestureDetector(
-                  onTap: _editName,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _displayName,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        Icons.edit,
-                        size: 18,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  authProvider.currentUser?.email ?? 'Thành viên',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // Badge hiển thị role
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getRoleColor(
-                      authProvider.currentRole,
-                    ).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: _getRoleColor(
-                        authProvider.currentRole,
-                      ).withValues(alpha: 0.5),
-                    ),
-                  ),
-                  child: Text(
-                    '${authProvider.currentUser?.roleIcon ?? "🌐"} ${authProvider.currentUser?.roleLabel ?? "Khách"}',
-                    style: TextStyle(
-                      color: _getRoleColor(authProvider.currentRole),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // Header với thông tin user (Premium Look)
+          _buildUserInfoHeader(context, authProvider),
 
-          // Thẻ số xu (chỉ hiện cho Member đã đăng nhập)
-          if (authProvider.isAuthenticated)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: InkWell(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CoinWalletScreen()),
-                ),
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF9800), Color(0xFFF44336)],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.monetization_on,
-                        color: Colors.white,
-                        size: 32,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Ví Xu của bạn',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                              ),
-                            ),
-                            Text(
-                              '${authProvider.coins} xu',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            'Nạp thêm',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Icon(
-                            Icons.arrow_forward_ios,
-                            color: Colors.white,
-                            size: 14,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          const SizedBox(height: 12),
+
+          // Action cho Manager (Admin/Editor)
+          if (isManager) _buildManagerPanel(context, authProvider),
+
+          // Subscription Banner (Thay thế Upgrade VIP cũ)
+          if (!isManager &&
+              authProvider.isAuthenticated &&
+              !authProvider.currentUser!.isVip)
+            _buildSubscriptionBanner(context),
 
           const SizedBox(height: 8),
 
@@ -509,40 +347,393 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
-          const SizedBox(height: 24),
-
-          // Nút đăng xuất
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: OutlinedButton.icon(
-              onPressed: _logout,
-              icon: const Icon(Icons.logout),
-              label: const Text('Đăng xuất'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error,
-                side: BorderSide(color: Theme.of(context).colorScheme.error),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 32),
+          const SizedBox(height: 40),
         ],
       ),
     );
   }
 
-  /// Lấy màu tương ứng với role
-  Color _getRoleColor(UserRole role) {
-    switch (role) {
-      case UserRole.admin:
-        return Colors.amber.shade700;
-      case UserRole.editor:
-        return Colors.blue;
-      case UserRole.member:
-        return Colors.green;
-      case UserRole.guest:
-        return Colors.grey;
-    }
+  Widget _buildManagerPanel(BuildContext context, AuthProvider auth) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'QUẢN TRỊ TRUYỆN',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: Colors.blueGrey,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildOptionCard(
+            context,
+            icon: Icons.dashboard_customize_rounded,
+            title: 'Bảng điều khiển Editor',
+            subtitle: 'Quản lý kho truyện và chương',
+            onTap: () {
+              // Điều hướng đến dashboard editor sau này
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Đang chuyển đến Bảng điều khiển...'),
+                ),
+              );
+            },
+            color: const Color(0xFF1A1A2E),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptionCard(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    Color? color,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListTile(
+        onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: (color ?? Theme.of(context).primaryColor).withValues(
+              alpha: 0.1,
+            ),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color ?? Theme.of(context).primaryColor),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded, color: Colors.grey),
+      ),
+    );
+  }
+
+  // ==================== NEW UI HELPERS ====================
+
+  Widget _buildUserInfoHeader(BuildContext context, AuthProvider authProvider) {
+    final appUser = authProvider.currentUser;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      // Dùng đúng màu nền scaffold -> hòa cùng nền, không phân chia
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: Column(
+        children: [
+          // Avatar với logic đa nguồn (Local file -> Google photo -> Icon)
+          GestureDetector(
+            onTap: _pickAvatar,
+            child: Stack(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.grey.withValues(alpha: 0.1),
+                      width: 2,
+                    ),
+                  ),
+                  child: CircleAvatar(
+                    radius: 50,
+                    backgroundColor: Colors.white10,
+                    backgroundImage:
+                        _avatarPath != null && File(_avatarPath!).existsSync()
+                        ? FileImage(File(_avatarPath!))
+                        : (appUser?.photoUrl != null
+                              ? NetworkImage(appUser!.photoUrl!)
+                              : null),
+                    child:
+                        (_avatarPath == null ||
+                                !File(_avatarPath!).existsSync()) &&
+                            appUser?.photoUrl == null
+                        ? const Icon(Icons.person, size: 50, color: Colors.grey)
+                        : null,
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF03DAC6),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt,
+                      size: 16,
+                      color: Color(0xFF1F1F1F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Name with Edit - Chữ trắng trên nền primary
+          GestureDetector(
+            onTap: _editName,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _displayName,
+                  style: TextStyle(
+                    color: Theme.of(context).textTheme.titleLarge?.color,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.edit,
+                  size: 18,
+                  color: Theme.of(context).textTheme.bodySmall?.color,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+
+          // Email - Luôn hiển thị nếu đã đăng nhập
+          if (authProvider.isAuthenticated)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 12),
+              child: Text(
+                authProvider.currentUser?.email ?? 'Chưa xác thực',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 14,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+
+          // Giao diện Badge loại tài khoản
+          if (authProvider.isAuthenticated)
+            Builder(
+              builder: (context) {
+                final role = authProvider.currentRole;
+                final bool isSpecialRole =
+                    role == UserRole.admin ||
+                    role == UserRole.editor ||
+                    role == UserRole.vip;
+
+                if (isSpecialRole) {
+                  // Hiển thị Badge phát sáng cho Admin, Editor, VIP
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: role == UserRole.admin
+                            ? [const Color(0xFFFF4E50), const Color(0xFFF9D423)]
+                            : role == UserRole.editor
+                            ? [const Color(0xFF00C6FF), const Color(0xFF0072FF)]
+                            : [
+                                const Color(0xFFFFD700),
+                                const Color(0xFFFFA500),
+                              ],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 8,
+                          spreadRadius: 0,
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${authProvider.currentUser?.roleIcon} ${authProvider.currentUser?.roleLabel}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                } else {
+                  // Member bình thường - Dùng màu theme thay vì hardcode
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Text(
+                      '👤 Thành viên',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                }
+              },
+            ),
+
+          // Nút số dư xu nạp tiền - ĐÃ LOẠI BỎ THEO YÊU CẦU
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubscriptionBanner(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1A1A2E), Color(0xFF4A4A8E)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1A1A2E).withValues(alpha: 0.3),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            const Row(
+              children: [
+                Icon(
+                  Icons.workspace_premium_rounded,
+                  color: Colors.amber,
+                  size: 40,
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Gói Hội Viên Premium',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Đọc mọi truyện không giới hạn',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => _showUpgradeVipDialog(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF1A1A2E),
+                minimumSize: const Size(double.infinity, 48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'TÌM HIỂU THÊM',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showUpgradeVipDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.workspace_premium, color: Colors.orange, size: 28),
+            SizedBox(width: 8),
+            Text('VIP Member'),
+          ],
+        ),
+        content: const Text(
+          'Đăng ký gói VIP (Mô phỏng) để loại bỏ quảng cáo và mở khóa vĩnh viễn tất cả truyện tính phí.\n\nTính năng này đang trong quá trình phát triển (Mock).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Để sau'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Tính năng nâng cấp VIP chưa tích hợp cổng thanh toán trực tiếp.',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Nâng cấp ngay'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildCoverImage(BuildContext context, String? coverImage) {

@@ -37,7 +37,7 @@ class FirestoreService {
           'displayName': displayName,
           'photoUrl': photoUrl,
           'role': userRoleToString(role), // Mặc định là member
-          'coins': 0, // Bắt đầu với 0 xu
+          'isVip': role == UserRole.vip || role == UserRole.admin, // VIP status
           'createdAt': DateTime.now().toIso8601String(),
           'isDisabled': false,
         });
@@ -105,60 +105,18 @@ class FirestoreService {
     });
   }
 
-  // ==================== QUẢN LÝ XU (COINS) ====================
+  // ==================== QUẢN LÝ PREMIUM (VIP) ====================
 
-  /// Nạp xu cho user (mock VNPay)
-  /// [uid] - UID của user
-  /// [amount] - Số xu muốn nạp thêm
-  static Future<bool> addCoins(String uid, int amount) async {
+  /// Cập nhật trạng thái VIP của user (chỉ Admin mới được gọi)
+  static Future<bool> updateUserVipStatus(String uid, bool isVip) async {
     try {
-      await _db.collection(_usersCollection).doc(uid).update({
-        // Dùng FieldValue.increment để tránh race condition
-        'coins': FieldValue.increment(amount),
-      });
-      debugPrint('✅ Firestore: Đã nạp $amount xu cho uid=$uid');
+      await _db.collection(_usersCollection).doc(uid).update({'isVip': isVip});
+      debugPrint(
+        '✅ Firestore: Đã cập nhật trạng thái VIP của uid=$uid thành $isVip',
+      );
       return true;
     } catch (e) {
-      debugPrint('❌ Firestore: Lỗi khi nạp xu: $e');
-      return false;
-    }
-  }
-
-  /// Trừ xu của user khi đọc truyện Premium
-  /// [uid] - UID của user
-  /// [amount] - Số xu cần trừ (mặc định 1 xu/chapter)
-  /// Trả về true nếu trừ xu thành công, false nếu không đủ xu
-  static Future<bool> spendCoins(String uid, int amount) async {
-    try {
-      // Dùng transaction để đảm bảo an toàn khi trừ xu
-      return await _db.runTransaction<bool>((transaction) async {
-        final docRef = _db.collection(_usersCollection).doc(uid);
-        final snapshot = await transaction.get(docRef);
-
-        if (!snapshot.exists) {
-          debugPrint('❌ Firestore: Không tìm thấy user uid=$uid để trừ xu');
-          return false;
-        }
-
-        final currentCoins = (snapshot.data()?['coins'] as int?) ?? 0;
-
-        // Kiểm tra đủ xu không
-        if (currentCoins < amount) {
-          debugPrint(
-            '⚠️ Firestore: Không đủ xu. Hiện có: $currentCoins, cần: $amount',
-          );
-          return false;
-        }
-
-        // Trừ xu
-        transaction.update(docRef, {'coins': currentCoins - amount});
-        debugPrint(
-          '✅ Firestore: Đã trừ $amount xu của uid=$uid. Còn lại: ${currentCoins - amount}',
-        );
-        return true;
-      });
-    } catch (e) {
-      debugPrint('❌ Firestore: Lỗi khi trừ xu: $e');
+      debugPrint('❌ Firestore: Lỗi khi cập nhật trạng thái VIP: $e');
       return false;
     }
   }
@@ -198,6 +156,18 @@ class FirestoreService {
     }
   }
 
+  /// Xóa tài khoản người dùng khỏi Firestore (Admin)
+  static Future<bool> deleteUser(String uid) async {
+    try {
+      await _db.collection(_usersCollection).doc(uid).delete();
+      debugPrint('✅ Firestore: Đã xóa tài khoản uid=$uid');
+      return true;
+    } catch (e) {
+      debugPrint('❌ Firestore: Lỗi khi xóa tài khoản: $e');
+      return false;
+    }
+  }
+
   /// Lấy danh sách tất cả users (chỉ Admin mới được gọi)
   /// [limit] - Số lượng user tối đa mỗi lần lấy
   static Future<List<AppUser>> getAllUsers({int limit = 50}) async {
@@ -219,4 +189,41 @@ class FirestoreService {
       return [];
     }
   }
+
+  // ==================== THỐNG KÊ HỆ THỐNG (ADMIN) ====================
+
+  /// Tên collection lưu truyện (map với tên trong Firestore)
+  static const String _storiesCollection = 'stories';
+
+  /// Lấy thống kê tổng quan hệ thống bằng Firestore Aggregation count()
+  /// Trả về Map với các key: totalUsers, totalStories
+  /// Dùng count() thay vì getDocs để tiết kiệm chi phí đọc Firestore
+  static Future<SystemStats> getSystemStats() async {
+    try {
+      // Chạy song song 2 truy vấn count() để giảm thời gian chờ
+      final results = await Future.wait([
+        _db.collection(_usersCollection).count().get(),
+        _db.collection(_storiesCollection).count().get(),
+      ]);
+
+      final totalUsers = results[0].count ?? 0;
+      final totalStories = results[1].count ?? 0;
+
+      debugPrint('✅ Firestore Stats: users=$totalUsers, stories=$totalStories');
+
+      return SystemStats(totalUsers: totalUsers, totalStories: totalStories);
+    } catch (e) {
+      debugPrint('❌ Firestore: Lỗi khi lấy thống kê hệ thống: $e');
+      // Trả về giá trị mặc định nếu lỗi (tránh crash app)
+      return SystemStats(totalUsers: 0, totalStories: 0);
+    }
+  }
+}
+
+/// Model lưu dữ liệu thống kê hệ thống
+class SystemStats {
+  final int totalUsers;
+  final int totalStories;
+
+  const SystemStats({required this.totalUsers, required this.totalStories});
 }

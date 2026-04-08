@@ -46,21 +46,35 @@ class ThemeProvider with ChangeNotifier {
     _prefs?.setBool(_themeKey, _isDarkMode);
   }
 
-  // Light Theme - định nghĩa static để không phải tạo lạio
+  // Light Theme - Định nghĩa static để dùng chung
   static final ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
     colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xFF6750A4),
-      brightness: Brightness.light,
+      seedColor: const Color(0xFF607D8B),
+      surface: Colors.white,
     ),
-    appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
+    scaffoldBackgroundColor: Colors.white,
+    appBarTheme: const AppBarTheme(
+      centerTitle: true,
+      elevation: 0,
+      backgroundColor: Colors.white,
+      foregroundColor: Color(0xFF263238),
+    ),
     cardTheme: CardThemeData(
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       elevation: 4,
+      backgroundColor: Color(0xFF607D8B),
+      foregroundColor: Colors.white,
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      elevation: 0,
+      backgroundColor: Colors.white,
+      indicatorColor: const Color(0xFF607D8B).withValues(alpha: 0.1),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,

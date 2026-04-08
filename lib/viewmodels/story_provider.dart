@@ -225,8 +225,9 @@ class StoryProvider with ChangeNotifier {
   Future<bool> addChapter(
     int storyId,
     String? title,
-    List<File> imageFiles,
-  ) async {
+    List<File> imageFiles, {
+    bool isVip = false,
+  }) async {
     try {
       // Lấy số chapter tiếp theo
       final chapterNumber = await _dbHelper.getNextChapterNumber(storyId);
@@ -236,6 +237,7 @@ class StoryProvider with ChangeNotifier {
         storyId: storyId,
         chapterNumber: chapterNumber,
         title: title,
+        isVip: isVip,
       );
 
       final chapterId = await _dbHelper.insertChapter(chapter);

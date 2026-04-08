@@ -56,6 +56,7 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen>
           ),
         ],
       ),
+
       body: Consumer<StoryProvider>(
         builder: (context, provider, child) {
           if (provider.isLoading) {

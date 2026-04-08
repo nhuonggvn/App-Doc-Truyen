@@ -33,11 +33,13 @@ class _ChapterEditScreenState extends State<ChapterEditScreen> {
   final List<File> _newImages = [];
   final List<int> _imagesToDelete = []; // IDs của ảnh cần xóa
   bool _isLoading = false;
+  bool _isVip = false;
 
   @override
   void initState() {
     super.initState();
     _titleController.text = widget.chapter.title ?? '';
+    _isVip = widget.chapter.isVip;
     _existingImages = List.from(widget.chapter.images);
   }
 
@@ -107,6 +109,7 @@ class _ChapterEditScreenState extends State<ChapterEditScreen> {
         title: _titleController.text.trim().isEmpty
             ? null
             : _titleController.text.trim(),
+        isVip: _isVip,
       );
       await _dbHelper.updateChapter(updatedChapter);
 
@@ -213,6 +216,24 @@ class _ChapterEditScreenState extends State<ChapterEditScreen> {
                 prefixIcon: Icon(Icons.title),
               ),
             ),
+          ),
+
+          // Tùy chọn chương VIP
+          SwitchListTile(
+            title: const Row(
+              children: [
+                Icon(Icons.lock_person, color: Colors.orange),
+                SizedBox(width: 8),
+                Text('Chương Thu Phí (VIP)'),
+              ],
+            ),
+            subtitle: const Text(
+              'Khoá người dùng thường đọc chương này, buộc nạp xu.',
+            ),
+            value: _isVip,
+            onChanged: (val) {
+              setState(() => _isVip = val);
+            },
           ),
 
           // Nút thêm ảnh

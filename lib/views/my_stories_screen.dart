@@ -90,7 +90,7 @@ class _MyStoriesScreenState extends State<MyStoriesScreen> {
                 ),
               ),
             if (stories.isNotEmpty) const SizedBox(width: 8),
-            const Text('Truyện Của Tôi'),
+            const Text('Quản lý truyện'),
           ],
         ),
         actions: [
@@ -105,6 +105,7 @@ class _MyStoriesScreenState extends State<MyStoriesScreen> {
           ),
         ],
       ),
+
       body: storyProvider.isLoading
           ? const Center(child: CircularProgressIndicator())
           : stories.isEmpty
@@ -124,7 +125,7 @@ class _MyStoriesScreenState extends State<MyStoriesScreen> {
         },
         icon: const Icon(Icons.add),
         label: const Text('Thêm truyện'),
-        backgroundColor: const Color.fromARGB(255, 0, 123, 255),  // Màu nền
+        backgroundColor: const Color.fromARGB(255, 0, 123, 255), // Màu nền
         foregroundColor: Colors.white, // Màu icon và text
       ),
     );

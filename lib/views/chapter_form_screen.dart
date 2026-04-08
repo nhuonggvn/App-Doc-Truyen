@@ -23,6 +23,7 @@ class _ChapterFormScreenState extends State<ChapterFormScreen> {
   final List<File> _selectedImages = [];
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
+  bool _isVip = false;
 
   @override
   void dispose() {
@@ -116,6 +117,7 @@ class _ChapterFormScreenState extends State<ChapterFormScreen> {
             ? null
             : _titleController.text.trim(),
         _selectedImages,
+        isVip: _isVip,
       );
 
       if (mounted) {
@@ -190,6 +192,24 @@ class _ChapterFormScreenState extends State<ChapterFormScreen> {
                   prefixIcon: Icon(Icons.title),
                 ),
               ),
+            ),
+
+            // Tùy chọn chương VIP
+            SwitchListTile(
+              title: const Row(
+                children: [
+                  Icon(Icons.lock_person, color: Colors.orange),
+                  SizedBox(width: 8),
+                  Text('Chương Thu Phí (VIP)'),
+                ],
+              ),
+              subtitle: const Text(
+                'Khoá người dùng thường đọc chương này, buộc nạp xu.',
+              ),
+              value: _isVip,
+              onChanged: (val) {
+                setState(() => _isVip = val);
+              },
             ),
 
             // Buttons thêm ảnh

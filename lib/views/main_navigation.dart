@@ -11,7 +11,6 @@ import 'my_stories_screen.dart';
 import 'reading_history_screen.dart';
 import 'profile_screen.dart';
 import 'admin/admin_dashboard_screen.dart';
-import 'editor/editor_dashboard_screen.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -92,15 +91,15 @@ class _MainNavigationState extends State<MainNavigation> {
       ),
     ];
 
-    // Tab bổ sung cho Member (đã đăng nhập)
-    if (role == UserRole.member) {
+    // Tab bổ sung cho Editor
+    if (role == UserRole.editor) {
       return [
         baseItems[0], // Trang chủ
         baseItems[1], // Online
         _NavItem(
           icon: Icons.edit_note_outlined,
           selectedIcon: Icons.edit_note,
-          label: 'Truyện của tôi',
+          label: 'Quản lý truyện',
           screen: const MyStoriesScreen(),
         ),
         baseItems[2], // Lịch sử
@@ -108,23 +107,7 @@ class _MainNavigationState extends State<MainNavigation> {
       ];
     }
 
-    // Tab bổ sung cho Editor
-    if (role == UserRole.editor) {
-      return [
-        baseItems[0], // Trang chủ
-        baseItems[1], // Online
-        _NavItem(
-          icon: Icons.dashboard_outlined,
-          selectedIcon: Icons.dashboard,
-          label: 'Quản lý',
-          screen: const EditorDashboardScreen(),
-        ),
-        baseItems[2], // Lịch sử
-        baseItems[3], // Hồ sơ
-      ];
-    }
-
-    // Tab bổ sung cho Admin (có thêm tab Quản trị)
+    // Tab bổ sung cho Admin (có thêm tab Quản trị & Quản lý truyện)
     if (role == UserRole.admin) {
       return [
         baseItems[0], // Trang chủ
@@ -136,16 +119,16 @@ class _MainNavigationState extends State<MainNavigation> {
           screen: const AdminDashboardScreen(),
         ),
         _NavItem(
-          icon: Icons.dashboard_outlined,
-          selectedIcon: Icons.dashboard,
-          label: 'Biên tập',
-          screen: const EditorDashboardScreen(),
+          icon: Icons.edit_note_outlined,
+          selectedIcon: Icons.edit_note,
+          label: 'Quản lý truyện',
+          screen: const MyStoriesScreen(),
         ),
         baseItems[3], // Hồ sơ
       ];
     }
 
-    // Guest: chỉ có tab cơ bản (không có Truyện của tôi)
+    // Member, VIP, Guest: chỉ có tab cơ bản
     return baseItems;
   }
 }

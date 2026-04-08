@@ -1,43 +1,58 @@
 // lib/models/app_user.dart
-// Model đại diện cho người dùng trong hệ thống phân quyền
+// Model đại diện cho người dùng trong hệ thống phân quyền (Refactored for Auth Split)
+
+/// Enum định nghĩa các nguồn xác thực của hệ thống
+enum AuthSource {
+  /// Xác thực qua Firebase (cho Member/VIP)
+  firebase,
+
+  /// Xác thực qua Custom BE API (cho Admin/Editor)
+  custom,
+}
 
 /// Enum định nghĩa 4 vai trò trong hệ thống
 enum UserRole {
   /// Người dùng chưa đăng nhập
   guest,
 
-  /// Thành viên thường (đăng nhập bằng email hoặc Google)
+  /// Thành viên thường (đăng nhập bằng Firebase)
   member,
 
-  /// Biên tập viên (có quyền thêm/sửa/xóa truyện)
+  /// Thành viên VIP (trả phí - quản lý qua Firebase)
+  vip,
+
+  /// Biên tập viên (quản lý qua Custom BE)
   editor,
 
-  /// Quản trị viên (toàn quyền hệ thống)
+  /// Quản trị viên (quản lý qua Custom BE)
   admin,
 }
 
-/// Chuyển chuỗi từ Firestore thành UserRole
+/// Chuyển chuỗi thành UserRole
 UserRole userRoleFromString(String? role) {
   switch (role) {
     case 'admin':
       return UserRole.admin;
+    case 'vip':
+      return UserRole.vip;
     case 'editor':
       return UserRole.editor;
     case 'member':
       return UserRole.member;
     default:
-      // Mặc định là member nếu đã đăng nhập mà không có role
       return UserRole.member;
   }
 }
 
-/// Chuyển UserRole thành chuỗi để lưu vào Firestore
+/// Chuyển UserRole thành chuỗi
 String userRoleToString(UserRole role) {
   switch (role) {
     case UserRole.admin:
       return 'admin';
     case UserRole.editor:
       return 'editor';
+    case UserRole.vip:
+      return 'vip';
     case UserRole.member:
       return 'member';
     case UserRole.guest:
@@ -45,30 +60,17 @@ String userRoleToString(UserRole role) {
   }
 }
 
-/// Model người dùng đầy đủ (kết hợp Firebase Auth + Firestore)
+/// Model người dùng đầy đủ
 class AppUser {
-  /// UID từ Firebase Auth
   final String uid;
-
-  /// Email đăng nhập
   final String? email;
-
-  /// Tên hiển thị
   final String? displayName;
-
-  /// URL ảnh đại diện
   final String? photoUrl;
-
-  /// Vai trò trong hệ thống
   final UserRole role;
-
-  /// Số xu hiện tại (dùng để đọc truyện Premium)
-  final int coins;
-
-  /// Thời điểm tạo tài khoản
+  final AuthSource authSource;
+  final String? token; // JWT dành cho Admin/Editor
+  final int coins; // Sẽ deprecate ở Phase 2
   final DateTime createdAt;
-
-  /// Tài khoản có bị khoá không
   final bool isDisabled;
 
   AppUser({
@@ -77,6 +79,8 @@ class AppUser {
     this.displayName,
     this.photoUrl,
     this.role = UserRole.member,
+    this.authSource = AuthSource.firebase,
+    this.token,
     this.coins = 0,
     DateTime? createdAt,
     this.isDisabled = false,
@@ -84,36 +88,24 @@ class AppUser {
 
   // ==================== THUỘC TÍNH TIỆN ÍCH ====================
 
-  /// Kiểm tra có phải Admin không
   bool get isAdmin => role == UserRole.admin;
-
-  /// Kiểm tra có phải Editor không
   bool get isEditor => role == UserRole.editor || role == UserRole.admin;
+  bool get isVip => role == UserRole.vip || isAdmin || isEditor;
+  bool get isMember => role == UserRole.member || role == UserRole.vip;
 
-  /// Kiểm tra có phải Member (đã đăng nhập, không phải guest) không
-  bool get isMember => role != UserRole.guest;
+  /// Kiểm tra xem user có phải là cấp Quản lý (Admin/Editor) từ Custom BE không
+  bool get isManager => authSource == AuthSource.custom;
 
-  /// Kiểm tra có xu để đọc truyện Premium không
-  bool get hasCoins => coins > 0;
+  String get name => displayName ?? email?.split('@').first ?? 'Người dùng';
 
-  /// Lấy tên hiển thị (ưu tiên displayName, fallback về email)
-  String get name {
-    if (displayName != null && displayName!.isNotEmpty) {
-      return displayName!;
-    }
-    if (email != null && email!.isNotEmpty) {
-      return email!.split('@').first;
-    }
-    return 'Người dùng';
-  }
-
-  /// Lấy nhãn vai trò bằng tiếng Việt
   String get roleLabel {
     switch (role) {
       case UserRole.admin:
         return 'Quản trị viên';
       case UserRole.editor:
         return 'Biên tập viên';
+      case UserRole.vip:
+        return 'Thành viên VIP';
       case UserRole.member:
         return 'Thành viên';
       case UserRole.guest:
@@ -121,13 +113,14 @@ class AppUser {
     }
   }
 
-  /// Lấy icon tương ứng với vai trò
   String get roleIcon {
     switch (role) {
       case UserRole.admin:
         return '👑';
       case UserRole.editor:
         return '✏️';
+      case UserRole.vip:
+        return '👑';
       case UserRole.member:
         return '👤';
       case UserRole.guest:
@@ -137,7 +130,7 @@ class AppUser {
 
   // ==================== PARSE / SERIALIZE ====================
 
-  /// Tạo AppUser từ document Firestore
+  /// Tạo Member từ Firestore (Firebase Auth)
   factory AppUser.fromFirestore(
     String uid,
     Map<String, dynamic> data, {
@@ -151,6 +144,7 @@ class AppUser {
       displayName: displayName ?? data['displayName']?.toString(),
       photoUrl: photoUrl ?? data['photoUrl']?.toString(),
       role: userRoleFromString(data['role']?.toString()),
+      authSource: AuthSource.firebase,
       coins: (data['coins'] as int?) ?? 0,
       createdAt: data['createdAt'] != null
           ? DateTime.tryParse(data['createdAt'].toString()) ?? DateTime.now()
@@ -159,7 +153,20 @@ class AppUser {
     );
   }
 
-  /// Chuyển AppUser thành Map để lưu vào Firestore
+  /// Tạo Manager (Admin/Editor) từ Custom BE API
+  factory AppUser.fromCustomApi(Map<String, dynamic> data, String token) {
+    return AppUser(
+      uid: data['id']?.toString() ?? '',
+      email: data['email']?.toString(),
+      displayName: data['name']?.toString(),
+      photoUrl: data['avatar']?.toString(),
+      role: userRoleFromString(data['role']?.toString()),
+      authSource: AuthSource.custom,
+      token: token,
+      createdAt: DateTime.now(),
+    );
+  }
+
   Map<String, dynamic> toFirestore() {
     return {
       'email': email,
@@ -172,12 +179,13 @@ class AppUser {
     };
   }
 
-  /// Tạo bản sao với một số thuộc tính thay đổi
   AppUser copyWith({
     String? email,
     String? displayName,
     String? photoUrl,
     UserRole? role,
+    AuthSource? authSource,
+    String? token,
     int? coins,
     bool? isDisabled,
   }) {
@@ -187,14 +195,11 @@ class AppUser {
       displayName: displayName ?? this.displayName,
       photoUrl: photoUrl ?? this.photoUrl,
       role: role ?? this.role,
+      authSource: authSource ?? this.authSource,
+      token: token ?? this.token,
       coins: coins ?? this.coins,
       createdAt: createdAt,
       isDisabled: isDisabled ?? this.isDisabled,
     );
-  }
-
-  @override
-  String toString() {
-    return 'AppUser(uid: $uid, role: ${userRoleToString(role)}, coins: $coins)';
   }
 }
