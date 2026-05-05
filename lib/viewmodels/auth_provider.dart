@@ -29,6 +29,7 @@ class AuthProvider extends ChangeNotifier {
   AuthStatus _status = AuthStatus.initializing;
   AppUser? _currentUser;
   String? _errorMessage;
+  int _authOpVersion = 0;
 
   // ─────────────────────────────────────────────────────────
   // GETTERS
@@ -70,10 +71,19 @@ class AuthProvider extends ChangeNotifier {
   /// Gọi trong main.dart hoặc initState của App widget
   /// Kiểm tra token cũ, nếu còn hạn thì tự động đăng nhập lại
   Future<void> tryAutoLogin() async {
+    final opVersion = ++_authOpVersion;
     _setStatus(AuthStatus.initializing);
     debugPrint('🚀 AuthProvider: Đang khôi phục session...');
 
     final user = await CustomAuthService.getMe();
+
+    // Nếu có thao tác auth mới hơn (login/logout) thì bỏ qua kết quả cũ.
+    if (opVersion != _authOpVersion) {
+      debugPrint(
+        'ℹ️ AuthProvider: Bỏ qua kết quả tryAutoLogin cũ do có thao tác mới hơn',
+      );
+      return;
+    }
 
     if (user != null) {
       _currentUser = user;
@@ -97,6 +107,7 @@ class AuthProvider extends ChangeNotifier {
     required String username,
     required String password,
   }) async {
+    final opVersion = ++_authOpVersion;
     _setStatus(AuthStatus.loading);
     _clearError();
 
@@ -105,15 +116,72 @@ class AuthProvider extends ChangeNotifier {
         username: username,
         password: password,
       );
+
+      if (opVersion != _authOpVersion) {
+        debugPrint('ℹ️ AuthProvider: Bỏ qua kết quả login cũ');
+        return false;
+      }
+
       _currentUser = user;
       _setStatus(AuthStatus.authenticated);
       return true;
     } on AuthException catch (e) {
+      if (opVersion != _authOpVersion) {
+        debugPrint('ℹ️ AuthProvider: Bỏ qua lỗi login cũ');
+        return false;
+      }
       _errorMessage = e.message;
       _setStatus(AuthStatus.unauthenticated);
       return false;
     } catch (e) {
+      if (opVersion != _authOpVersion) {
+        debugPrint('ℹ️ AuthProvider: Bỏ qua lỗi login cũ');
+        return false;
+      }
       _errorMessage = 'Đã xảy ra lỗi không xác định. Vui lòng thử lại.';
+      _setStatus(AuthStatus.unauthenticated);
+      return false;
+    }
+  }
+
+  /// Đăng nhập bằng Google
+  Future<bool> loginWithGoogle() async {
+    final opVersion = ++_authOpVersion;
+    _setStatus(AuthStatus.loading);
+    _clearError();
+
+    try {
+      final user = await CustomAuthService.loginWithGoogle();
+
+      if (opVersion != _authOpVersion) {
+        debugPrint(
+          'ℹ️ AuthProvider: Bỏ qua kết quả login Google cũ (phiên bản khác)',
+        );
+        return false;
+      }
+
+      // ĐẢM BẢO gán user trước khi set status để isAuthenticated getter luôn đúng
+      _currentUser = user;
+      _status = AuthStatus.authenticated;
+      _errorMessage = null;
+
+      notifyListeners();
+      debugPrint('✅ AuthProvider: Đã đăng nhập Google thành công -> Chuyển UI');
+      return true;
+    } on AuthException catch (e) {
+      if (opVersion != _authOpVersion) {
+        debugPrint('ℹ️ AuthProvider: Bỏ qua lỗi login Google cũ');
+        return false;
+      }
+      _errorMessage = e.message;
+      _setStatus(AuthStatus.unauthenticated);
+      return false;
+    } catch (e) {
+      if (opVersion != _authOpVersion) {
+        debugPrint('ℹ️ AuthProvider: Bỏ qua lỗi login Google cũ');
+        return false;
+      }
+      _errorMessage = 'Đã xảy ra lỗi. Vui lòng thử lại.';
       _setStatus(AuthStatus.unauthenticated);
       return false;
     }
@@ -131,6 +199,7 @@ class AuthProvider extends ChangeNotifier {
     String? fullname,
     String? phone,
   }) async {
+    final opVersion = ++_authOpVersion;
     _setStatus(AuthStatus.loading);
     _clearError();
 
@@ -141,14 +210,28 @@ class AuthProvider extends ChangeNotifier {
         fullname: fullname,
         phone: phone,
       );
+
+      if (opVersion != _authOpVersion) {
+        debugPrint('ℹ️ AuthProvider: Bỏ qua kết quả register cũ');
+        return false;
+      }
+
       _currentUser = user;
       _setStatus(AuthStatus.authenticated);
       return true;
     } on AuthException catch (e) {
+      if (opVersion != _authOpVersion) {
+        debugPrint('ℹ️ AuthProvider: Bỏ qua lỗi register cũ');
+        return false;
+      }
       _errorMessage = e.message;
       _setStatus(AuthStatus.unauthenticated);
       return false;
     } catch (e) {
+      if (opVersion != _authOpVersion) {
+        debugPrint('ℹ️ AuthProvider: Bỏ qua lỗi register cũ');
+        return false;
+      }
       _errorMessage = 'Đã xảy ra lỗi. Vui lòng thử lại.';
       _setStatus(AuthStatus.unauthenticated);
       return false;
@@ -160,8 +243,15 @@ class AuthProvider extends ChangeNotifier {
   // ─────────────────────────────────────────────────────────
 
   Future<void> logout() async {
+    final opVersion = ++_authOpVersion;
     debugPrint('🚪 AuthProvider: Đăng xuất...');
     await CustomAuthService.logout();
+
+    if (opVersion != _authOpVersion) {
+      debugPrint('ℹ️ AuthProvider: Bỏ qua kết quả logout cũ');
+      return;
+    }
+
     _currentUser = null;
     _clearError();
     _setStatus(AuthStatus.unauthenticated);

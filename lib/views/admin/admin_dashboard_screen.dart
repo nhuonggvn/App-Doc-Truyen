@@ -180,7 +180,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      appUser?.name ?? 'Quản trị viên',
+                      appUser?.displayName ?? 'Quản trị viên',
                       style: TextStyle(
                         color: Theme.of(context).textTheme.titleLarge?.color,
                         fontSize: 22,

@@ -140,11 +140,16 @@ class AppUser {
 
     // Decode role từ JWT payload
     final jwtPayload = _decodeJwtPayload(token);
-    final roleStr = jwtPayload['role'] as String?;
+    // Lấy role từ user info trước, nếu không có mới decode từ JWT
+    final roleStr =
+        (userJson['role']?.toString()) ??
+        (userJson['Role']?.toString()) ??
+        (jwtPayload['role']?.toString()) ??
+        (jwtPayload['Role']?.toString());
     final role = userRoleFromString(roleStr);
 
     return AppUser(
-      id: userJson['id'] as String? ?? '',
+      id: (userJson['id'] ?? userJson['_id'] ?? '').toString(),
       username: userJson['username'] as String? ?? '',
       fullname: userJson['fullname'] as String?,
       phone: userJson['phone'] as String?,
@@ -162,11 +167,16 @@ class AppUser {
   ) {
     // Decode role từ JWT
     final jwtPayload = _decodeJwtPayload(currentToken);
-    final roleStr = jwtPayload['role'] as String?;
+    // Lấy role từ userJson trước, nếu không có mới decode từ JWT
+    final roleStr =
+        (userJson['role']?.toString()) ??
+        (userJson['Role']?.toString()) ??
+        (jwtPayload['role']?.toString()) ??
+        (jwtPayload['Role']?.toString());
     final role = userRoleFromString(roleStr);
 
     return AppUser(
-      id: userJson['id'] as String? ?? '',
+      id: (userJson['id'] ?? userJson['_id'] ?? '').toString(),
       username: userJson['username'] as String? ?? '',
       fullname: userJson['fullname'] as String?,
       phone: userJson['phone'] as String?,
@@ -197,8 +207,9 @@ class AppUser {
   /// Tạo bản sao với token mới (sau khi refresh)
   AppUser copyWithToken(String newToken) {
     final jwtPayload = _decodeJwtPayload(newToken);
-    final roleStr = jwtPayload['role'] as String?;
-    final newRole = userRoleFromString(roleStr);
+    final roleStr =
+        (jwtPayload['role']?.toString()) ?? (jwtPayload['Role']?.toString());
+    final newRole = userRoleFromString(roleStr ?? userRoleToString(role));
 
     return AppUser(
       id: id,

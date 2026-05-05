@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../models/app_user.dart';
 
 class CustomAuthService {
@@ -16,6 +17,24 @@ class CustomAuthService {
   static const String _baseUrl = 'http://192.168.3.237:8180/api/v1';
   static const String _tokenKey = 'custom_auth_token';
   static const Duration _timeout = Duration(seconds: 15);
+
+  /// Chuẩn hóa username từ email Google để phù hợp validate backend.
+  /// Chỉ giữ chữ thường, số, dấu chấm và gạch dưới.
+  static String _buildGoogleUsername(String email) {
+    final localPart = email.split('@').first.toLowerCase();
+    final normalized = localPart.replaceAll(RegExp(r'[^a-z0-9._]'), '_');
+    final safe = normalized.isEmpty ? 'google_user' : normalized;
+    final limited = safe.length > 24 ? safe.substring(0, 24) : safe;
+    return 'g_$limited';
+  }
+
+  /// Sinh username dự phòng ổn định theo email để giảm xung đột trùng tên.
+  static String _buildGoogleFallbackUsername(String email) {
+    final base = _buildGoogleUsername(email);
+    final hash = email.hashCode.abs().toString();
+    final suffix = hash.length > 6 ? hash.substring(0, 6) : hash;
+    return '${base}_$suffix';
+  }
 
   // ─────────────────────────────────────────────────────────
   // QUẢN LÝ TOKEN (SharedPreferences)
@@ -72,7 +91,7 @@ class CustomAuthService {
     required String password,
   }) async {
     try {
-      debugPrint('🔐 Auth: Đăng nhập với username=$username');
+      debugPrint(' Auth: Đăng nhập với username=$username');
 
       final response = await http
           .post(
@@ -86,7 +105,7 @@ class CustomAuthService {
           .timeout(_timeout);
 
       final body = _parseBody(response);
-      debugPrint('🔐 Auth Login response: ${response.statusCode}');
+      debugPrint(' Auth Login response: ${response.statusCode}');
 
       if (response.statusCode == 200 && body['success'] == true) {
         final data = body['data'] as Map<String, dynamic>;
@@ -95,7 +114,7 @@ class CustomAuthService {
         // Lưu token để dùng lần sau
         await saveToken(user.token);
         debugPrint(
-          '✅ Auth: Đăng nhập thành công - ${user.username} (${user.roleLabel})',
+          'Auth: Đăng nhập thành công - ${user.username} (${user.roleLabel})',
         );
         return user;
       } else {
@@ -106,8 +125,61 @@ class CustomAuthService {
     } on AuthException {
       rethrow;
     } catch (e) {
-      debugPrint('❌ Auth Login lỗi: $e');
+      debugPrint(' Auth Login lỗi: $e');
       throw AuthException('Không thể kết nối đến máy chủ. Vui lòng thử lại.');
+    }
+  }
+
+  /// Đăng nhập bằng Google
+  /// (Mô phỏng: Dùng email Google làm username và tự sinh password)
+  static Future<AppUser> loginWithGoogle() async {
+    try {
+      final googleSignIn = GoogleSignIn();
+      final googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        throw AuthException('Đã hủy đăng nhập Google.');
+      }
+
+      final email = googleUser.email;
+      final displayName = googleUser.displayName ?? 'Google User';
+      final password = 'G_${email}_Spro_123!';
+      final primaryUsername = _buildGoogleUsername(email);
+      final fallbackUsername = _buildGoogleFallbackUsername(email);
+
+      // Ưu tiên email trước nếu login bình thường, vì logs cho thấy tài khoản đang dùng email trực tiếp
+      final loginCandidates = <String>[email, primaryUsername];
+      for (final username in loginCandidates) {
+        try {
+          debugPrint(' Auth: Thử đăng nhập Google với username=$username');
+          return await login(username: username, password: password);
+        } on AuthException {
+          // Bỏ qua để thử candidate tiếp theo.
+        }
+      }
+
+      // Nếu chưa có tài khoản thì tạo mới.
+      debugPrint(' Auth: Chưa có tài khoản Google, tiến hành đăng ký mới...');
+      try {
+        return await register(
+          username: primaryUsername,
+          password: password,
+          fullname: displayName,
+        );
+      } on AuthException {
+        // Có thể trùng username, thử username dự phòng.
+        debugPrint(
+          ' Auth: Username Google chính bị trùng, thử username dự phòng...',
+        );
+        return await register(
+          username: fallbackUsername,
+          password: password,
+          fullname: displayName,
+        );
+      }
+    } catch (e) {
+      if (e is AuthException) rethrow;
+      debugPrint('Auth Google lỗi: $e');
+      throw AuthException('Lỗi đăng nhập Google: $e');
     }
   }
 
@@ -120,7 +192,7 @@ class CustomAuthService {
     String? phone,
   }) async {
     try {
-      debugPrint('📝 Auth: Đăng ký username=$username');
+      debugPrint(' Auth: Đăng ký username=$username');
 
       final body = <String, dynamic>{
         'username': username.trim(),
@@ -139,14 +211,15 @@ class CustomAuthService {
           .timeout(_timeout);
 
       final responseBody = _parseBody(response);
-      debugPrint('📝 Auth Register response: ${response.statusCode}');
+      debugPrint(' Auth Register response: ${response.statusCode}');
 
-      if (response.statusCode == 201 && responseBody['success'] == true) {
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          responseBody['success'] == true) {
         final data = responseBody['data'] as Map<String, dynamic>;
         final user = AppUser.fromLoginResponse(data);
 
         await saveToken(user.token);
-        debugPrint('✅ Auth: Đăng ký thành công - ${user.username}');
+        debugPrint(' Auth: Đăng ký thành công - ${user.username}');
         return user;
       } else {
         final message =
@@ -156,7 +229,7 @@ class CustomAuthService {
     } on AuthException {
       rethrow;
     } catch (e) {
-      debugPrint('❌ Auth Register lỗi: $e');
+      debugPrint(' Auth Register lỗi: $e');
       throw AuthException('Không thể kết nối đến máy chủ. Vui lòng thử lại.');
     }
   }
@@ -167,11 +240,11 @@ class CustomAuthService {
     try {
       final token = await getStoredToken();
       if (token == null || token.isEmpty) {
-        debugPrint('🔐 Auth: Không có token đã lưu');
+        debugPrint(' Auth: Không có token đã lưu');
         return null;
       }
 
-      debugPrint('🔐 Auth: Khôi phục session từ token...');
+      debugPrint(' Auth: Khôi phục session từ token...');
       final response = await http
           .get(Uri.parse('$_baseUrl/auth/me'), headers: _authHeaders(token))
           .timeout(_timeout);
@@ -182,17 +255,17 @@ class CustomAuthService {
         final userJson = body['data'] as Map<String, dynamic>;
         final user = AppUser.fromMeResponse(userJson, token);
         debugPrint(
-          '✅ Auth: Khôi phục session thành công - ${user.username} (${user.roleLabel})',
+          ' Auth: Khôi phục session thành công - ${user.username} (${user.roleLabel})',
         );
         return user;
       } else {
         // Token hết hạn hoặc không hợp lệ
-        debugPrint('⚠️ Auth: Token hết hạn hoặc không hợp lệ, xóa token');
+        debugPrint(' Auth: Token hết hạn hoặc không hợp lệ, xóa token');
         await clearToken();
         return null;
       }
     } catch (e) {
-      debugPrint('❌ Auth GetMe lỗi: $e');
+      debugPrint(' Auth GetMe lỗi: $e');
       // Không throw exception ở đây - chỉ trả null để app vẫn chạy ở chế độ Guest
       return null;
     }
@@ -212,6 +285,12 @@ class CustomAuthService {
             .timeout(_timeout);
         debugPrint('✅ Auth: Đã logout khỏi server');
       }
+
+      // Đăng xuất khỏi Google nếu đang dùng
+      try {
+        final googleSignIn = GoogleSignIn();
+        await googleSignIn.signOut();
+      } catch (_) {}
     } catch (e) {
       // Dù server lỗi vẫn xóa token local
       debugPrint('⚠️ Auth Logout server lỗi: $e - vẫn xóa token local');

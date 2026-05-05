@@ -100,6 +100,19 @@ class _AuthScreenState extends State<AuthScreen>
     }
   }
 
+  Future<void> _handleGoogleLogin() async {
+    FocusScope.of(context).unfocus();
+    final authProvider = context.read<AuthProvider>();
+
+    final success = await authProvider.loginWithGoogle();
+
+    if (!mounted) return;
+
+    if (!success) {
+      _showError(authProvider.errorMessage ?? 'Đăng nhập Google thất bại');
+    }
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -303,6 +316,55 @@ class _AuthScreenState extends State<AuthScreen>
                         fontWeight: FontWeight.w700,
                       ),
                     ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Hoặc đăng nhập bằng
+          Row(
+            children: [
+              Expanded(
+                child: Divider(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Hoặc tiếp tục với',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Divider(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Đăng nhập Google
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: OutlinedButton.icon(
+              onPressed: isLoading ? null : _handleGoogleLogin,
+              icon: isLoading
+                  ? const SizedBox.shrink()
+                  : const Icon(Icons.g_mobiledata, size: 32, color: Colors.red),
+              label: const Text(
+                'Đăng nhập với Google',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
             ),
           ),
 

@@ -13,8 +13,8 @@ import '../viewmodels/story_provider.dart';
 import '../viewmodels/theme_provider.dart';
 import '../viewmodels/online_manga_provider.dart';
 import '../services/manga_api_service.dart';
-import 'auth_screen.dart';
 import 'online_manga_detail_screen.dart';
+import 'editor/editor_dashboard_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -149,12 +149,6 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     if (confirmed == true && mounted) {
       await Provider.of<AuthProvider>(context, listen: false).logout();
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const AuthScreen()),
-          (route) => false,
-        );
-      }
     }
   }
 
@@ -399,10 +393,10 @@ class _ProfileScreenState extends State<ProfileScreen>
             title: 'Bảng điều khiển Editor',
             subtitle: 'Quản lý kho truyện và chương',
             onTap: () {
-              // Điều hướng đến dashboard editor sau này
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Đang chuyển đến Bảng điều khiển...'),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const EditorDashboardScreen(),
                 ),
               );
             },
@@ -423,7 +417,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -448,7 +442,11 @@ class _ProfileScreenState extends State<ProfileScreen>
         ),
         title: Text(
           title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          style: TextStyle(
+            color: Theme.of(context).textTheme.titleMedium?.color,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
         ),
         subtitle: Text(
           subtitle,
@@ -529,7 +527,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  _displayName,
+                  authProvider.currentUser?.displayName ?? _displayName,
                   style: TextStyle(
                     color: Theme.of(context).textTheme.titleLarge?.color,
                     fontSize: 22,
@@ -835,35 +833,5 @@ class _ProfileScreenState extends State<ProfileScreen>
         );
       }
     }
-  }
-
-  Widget _buildCoverImage(BuildContext context, String? coverImage) {
-    if (coverImage != null && coverImage.isNotEmpty) {
-      final file = File(coverImage);
-      if (file.existsSync()) {
-        return Image.file(file, fit: BoxFit.cover);
-      }
-    }
-
-    // Placeholder
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Theme.of(context).colorScheme.primary,
-            Theme.of(context).colorScheme.tertiary,
-          ],
-        ),
-      ),
-      child: Center(
-        child: Icon(
-          Icons.menu_book,
-          size: 32,
-          color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.7),
-        ),
-      ),
-    );
   }
 }

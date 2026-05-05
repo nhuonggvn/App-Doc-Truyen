@@ -124,7 +124,7 @@ class EditorDashboardScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  appUser?.name ?? 'Editor',
+                  appUser?.displayName ?? 'Editor',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
