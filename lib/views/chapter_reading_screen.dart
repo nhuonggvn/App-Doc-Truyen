@@ -114,6 +114,7 @@ class _ChapterReadingScreenState extends State<ChapterReadingScreen> {
             else
               ListView.builder(
                 controller: _scrollController,
+                cacheExtent: 9999, // Tải trước ảnh để cuộn mượt
                 //Padding top và bottom bằng 10% chiều cao màn hình
                 padding: EdgeInsets.only(
                   top: MediaQuery.of(context).padding.top,
@@ -121,7 +122,7 @@ class _ChapterReadingScreenState extends State<ChapterReadingScreen> {
                 ),
                 itemCount: images.length,
                 itemBuilder: (context, index) {
-                  return _buildImageItem(images[index], index);
+                  return _KeepAliveLocalImage(image: images[index], index: index);
                 },
               ),
 
@@ -298,36 +299,6 @@ class _ChapterReadingScreenState extends State<ChapterReadingScreen> {
       ),
     );
   }
-
-  Widget _buildImageItem(ChapterImage image, int index) {
-    final file = File(image.imagePath);
-
-    if (!file.existsSync()) {
-      return Container(
-        height: 200,
-        color: Colors.grey[900],
-        child: const Center(
-          child: Icon(Icons.broken_image, color: Colors.white54, size: 48),
-        ),
-      );
-    }
-
-    return Image.file(
-      file,
-      fit: BoxFit.fitWidth,
-      width: double.infinity,
-      errorBuilder: (context, error, stackTrace) {
-        return Container(
-          height: 200,
-          color: Colors.grey[900],
-          child: const Center(
-            child: Icon(Icons.error, color: Colors.red, size: 48),
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildIconOnlyButton(IconData icon, VoidCallback? onPressed) {
     final isEnabled = onPressed != null;
 
@@ -389,6 +360,58 @@ class _ChapterReadingScreenState extends State<ChapterReadingScreen> {
         builder: (context) =>
             ChapterReadingScreen(story: widget.story, chapter: chapter),
       ),
+    );
+  }
+}
+
+/// Bọc ảnh Local để giữ trong bộ nhớ khi cuộn
+class _KeepAliveLocalImage extends StatefulWidget {
+  final ChapterImage image;
+  final int index;
+
+  const _KeepAliveLocalImage({
+    required this.image,
+    required this.index,
+  });
+
+  @override
+  State<_KeepAliveLocalImage> createState() => _KeepAliveLocalImageState();
+}
+
+class _KeepAliveLocalImageState extends State<_KeepAliveLocalImage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true; // Giữ widget trong RAM
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context); // Bắt buộc
+
+    final file = File(widget.image.imagePath);
+
+    if (!file.existsSync()) {
+      return Container(
+        height: 200,
+        color: Colors.grey[900],
+        child: const Center(
+          child: Icon(Icons.broken_image, color: Colors.white54, size: 48),
+        ),
+      );
+    }
+
+    return Image.file(
+      file,
+      fit: BoxFit.fitWidth,
+      width: double.infinity,
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          height: 200,
+          color: Colors.grey[900],
+          child: const Center(
+            child: Icon(Icons.error, color: Colors.red, size: 48),
+          ),
+        );
+      },
     );
   }
 }

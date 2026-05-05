@@ -23,10 +23,13 @@ class OnlineChapterReadingScreen extends StatefulWidget {
       _OnlineChapterReadingScreenState();
 }
 
-class _OnlineChapterReadingScreenState
-    extends State<OnlineChapterReadingScreen> {
+class _OnlineChapterReadingScreenState extends State<OnlineChapterReadingScreen> {
   // Ẩn/hiện AppBar khi chạm vào màn hình
-  bool _showAppBar = true;
+  bool _showControls = true;
+  final ScrollController _scrollController = ScrollController();
+  
+  OnlineChapter? _previousChapter;
+  OnlineChapter? _nextChapter;
 
   @override
   void initState() {
@@ -48,7 +51,47 @@ class _OnlineChapterReadingScreenState
         chapterName: widget.chapter.name,
         pageIndex: 0,
       );
+      
+      _loadAdjacentChapters(provider);
     });
+    
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_showControls) {
+      setState(() {
+        _showControls = false;
+      });
+    }
+  }
+
+  void _loadAdjacentChapters(OnlineMangaProvider provider) {
+    final detail = provider.currentDetail;
+    if (detail == null) return;
+    
+    final chapters = detail.chapters;
+    for (int i = 0; i < chapters.length; i++) {
+      if (chapters[i].apiId == widget.chapter.apiId) {
+        // Trong API thường xếp mới nhất ở đầu (index 0).
+        // Tập tiếp theo (đọc tiếp) sẽ là index - 1.
+        // Tập trước đó sẽ là index + 1.
+        if (i > 0) {
+          _nextChapter = chapters[i - 1]; 
+        }
+        if (i < chapters.length - 1) {
+          _previousChapter = chapters[i + 1]; 
+        }
+        break;
+      }
+    }
+    setState(() {});
   }
 
   @override
@@ -56,35 +99,166 @@ class _OnlineChapterReadingScreenState
     final provider = Provider.of<OnlineMangaProvider>(context);
 
     return Scaffold(
-      // AppBar có thể ẩn/hiện
-      appBar: _showAppBar
-          ? AppBar(
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Tên truyện
-                  Text(
-                    widget.manga.title,
-                    style: const TextStyle(fontSize: 14),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  // Tên chapter
-                  Text(
-                    widget.chapter.name,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : null,
       backgroundColor: Colors.black,
-      body: _buildBody(provider),
+      body: GestureDetector(
+        onTap: () {
+          setState(() {
+            _showControls = !_showControls;
+          });
+        },
+        child: Stack(
+          children: [
+            // Nội dung chính (ảnh truyện)
+            _buildBody(provider),
+
+            // Top bar
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 200),
+              top: _showControls ? -50 : -150,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top,
+                ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black,
+                      Colors.black.withValues(alpha: 0.95),
+                      Colors.black.withValues(alpha: 0.75),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.2, 0.5, 0.9, 1.0],
+                  ),
+                ),
+                child: AppBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  title: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.manga.title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white70,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        widget.chapter.name,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+            ),
+
+            // Bottom navigation bar
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 200),
+              bottom: _showControls ? 0 : -140,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).padding.bottom + 12,
+                  top: 24,
+                  left: 8,
+                  right: 8,
+                ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Colors.black,
+                      Colors.black.withValues(alpha: 0.95),
+                      Colors.black.withValues(alpha: 0.7),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.5, 0.8, 1.0],
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    // Nút Home (chỉ icon)
+                    _buildIconOnlyButton(
+                      Icons.home,
+                      () => Navigator.popUntil(context, (route) => route.isFirst),
+                    ),
+
+                    // Nút chapter trước (về logic hiển thị)
+                    _buildIconOnlyButton(
+                      Icons.chevron_left,
+                      _previousChapter != null
+                          ? () => _goToChapter(_previousChapter!)
+                          : null,
+                    ),
+
+                    // Dropdown chọn chapter
+                    Flexible(flex: 2, child: _buildChapterSelector(provider)),
+
+                    // Nút chapter sau
+                    _buildIconOnlyButton(
+                      Icons.chevron_right,
+                      _nextChapter != null
+                          ? () => _goToChapter(_nextChapter!)
+                          : null,
+                    ),
+
+                    // Nút yêu thích
+                    _buildIconOnlyButton(
+                      provider.isFavorite(widget.manga.slug) ? Icons.favorite : Icons.favorite_border,
+                      () {
+                         provider.toggleFavorite(widget.manga);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Floating scroll to top button
+            Positioned(
+              right: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 100,
+              child: GestureDetector(
+                onTap: () {
+                  _scrollController.jumpTo(0);
+                },
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.keyboard_arrow_up,
+                    color: Colors.white.withValues(alpha: 0.8),
+                    size: 28,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -154,30 +328,122 @@ class _OnlineChapterReadingScreenState
       );
     }
 
-    // Danh sách ảnh cuộn dọc (chạm để ẩn/hiện AppBar)
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _showAppBar = !_showAppBar;
-        });
+    // Danh sách ảnh cuộn dọc
+    return ListView.builder(
+      controller: _scrollController,
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top,
+        bottom: MediaQuery.of(context).padding.bottom,
+      ),
+      cacheExtent: 9999, // Tải trước ảnh (khoảng 3-4 màn hình) để lướt mượt
+      itemCount: images.length,
+      itemBuilder: (context, index) {
+        return _KeepAliveImage(
+          imageUrl: images[index], 
+          index: index, 
+          total: images.length,
+        );
       },
-      child: ListView.builder(
-        padding: EdgeInsets.zero,
-        itemCount: images.length,
-        itemBuilder: (context, index) {
-          return _buildChapterImage(images[index], index, images.length);
+    );
+  }
+
+  Widget _buildIconOnlyButton(IconData icon, VoidCallback? onPressed) {
+    final isEnabled = onPressed != null;
+
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Icon(
+          icon,
+          color: isEnabled ? Colors.white : Colors.white38,
+          size: 28,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChapterSelector(OnlineMangaProvider provider) {
+    final detail = provider.currentDetail;
+    if (detail == null || detail.chapters.isEmpty) return const SizedBox();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white24,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: DropdownButton<String>(
+        value: widget.chapter.apiId,
+        dropdownColor: Colors.grey[900],
+        underline: const SizedBox(),
+        isDense: true,
+        isExpanded: true,
+        icon: const Icon(Icons.arrow_drop_down, color: Colors.white, size: 20),
+        items: detail.chapters.map((chapter) {
+          return DropdownMenuItem<String>(
+            value: chapter.apiId,
+            child: Text(
+              chapter.name,
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+              overflow: TextOverflow.ellipsis,
+            ),
+          );
+        }).toList(),
+        onChanged: (chapterId) {
+          if (chapterId != null && chapterId != widget.chapter.apiId) {
+            final selectedChapter = detail.chapters.firstWhere(
+              (c) => c.apiId == chapterId,
+            );
+            _goToChapter(selectedChapter);
+          }
         },
       ),
     );
   }
 
-  /// Hiển thị một ảnh chapter
-  Widget _buildChapterImage(String imageUrl, int index, int total) {
+  void _goToChapter(OnlineChapter chapter) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            OnlineChapterReadingScreen(manga: widget.manga, chapter: chapter),
+      ),
+    );
+  }
+}
+
+/// Widget bọc ảnh để giữ lại trong bộ nhớ (không bị load lại khi cuộn)
+class _KeepAliveImage extends StatefulWidget {
+  final String imageUrl;
+  final int index;
+  final int total;
+
+  const _KeepAliveImage({
+    required this.imageUrl,
+    required this.index,
+    required this.total,
+  });
+
+  @override
+  State<_KeepAliveImage> createState() => _KeepAliveImageState();
+}
+
+class _KeepAliveImageState extends State<_KeepAliveImage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true; // Quan trọng: Yêu cầu Flutter giữ widget này
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context); // Bắt buộc gọi super
+
     return Column(
       children: [
         // Ảnh chapter - chiều rộng full màn hình
         CachedNetworkImage(
-          imageUrl: imageUrl,
+          imageUrl: widget.imageUrl,
           width: double.infinity,
           fit: BoxFit.fitWidth,
           placeholder: (context, url) => Container(
@@ -185,7 +451,7 @@ class _OnlineChapterReadingScreenState
             color: Colors.grey[900],
             child: Center(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+               mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const CircularProgressIndicator(
                     strokeWidth: 2,
@@ -193,7 +459,7 @@ class _OnlineChapterReadingScreenState
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Trang ${index + 1}/$total',
+                    'Trang ${widget.index + 1}/${widget.total}',
                     style: const TextStyle(color: Colors.white38, fontSize: 12),
                   ),
                 ],
@@ -214,7 +480,7 @@ class _OnlineChapterReadingScreenState
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Không tải được trang ${index + 1}',
+                    'Không tải được trang ${widget.index + 1}',
                     style: const TextStyle(color: Colors.white38, fontSize: 12),
                   ),
                 ],
@@ -224,7 +490,7 @@ class _OnlineChapterReadingScreenState
         ),
 
         // Hiển thị số trang cuối cùng
-        if (index == total - 1)
+        if (widget.index == widget.total - 1)
           Container(
             padding: const EdgeInsets.all(24),
             color: Colors.black,

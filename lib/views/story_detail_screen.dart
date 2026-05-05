@@ -314,11 +314,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                             const SizedBox(height: 16),
                             Text(
                               'Chưa có chương nào',
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                                   ),
                             ),
                             const SizedBox(height: 8),
@@ -334,15 +331,17 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                   : Container(
                       height: 400, // Chiều cao cố định
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: ListView.builder(
                         padding: EdgeInsets.zero,
                         itemCount: chapters.length,
                         itemBuilder: (context, index) {
-                          final chapter = chapters[index];
-                          return _buildChapterTile(chapter, index);
+                          // Hiển thị chapter lớn nhất (mới nhất) lên trên
+                          final reversedIndex = chapters.length - 1 - index;
+                          final chapter = chapters[reversedIndex];
+                          return _buildChapterTile(chapter, reversedIndex);
                         },
                       ),
                     ),

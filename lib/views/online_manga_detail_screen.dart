@@ -330,21 +330,36 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
 
             const SizedBox(height: 16),
 
-            // Nút đọc từ đầu
+            // Nút đọc từ đầu & đọc tiếp
             if (detail.chapters.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () => _openChapter(
-                      detail.chapters.last, // Chapter đầu tiên (cuối list)
-                      detail.title,
-                      true, // Chap đầu luôn free
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _openChapter(
+                          detail.chapters.last, // Tập đầu tiên
+                          detail.title,
+                          true,
+                        ),
+                        icon: const Icon(Icons.menu_book),
+                        label: const Text('Đọc từ đầu'),
+                      ),
                     ),
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Đọc từ đầu'),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => _openChapter(
+                          detail.chapters.first, // Tập mới nhất
+                          detail.title,
+                          false, // TODO: Logic tính phí sau
+                        ),
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Đọc tiếp'),
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -369,37 +384,61 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            // Danh sách chapters nằm trong một box có chiều cao cố định giống StoryDetailScreen
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: detail.chapters.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.library_books_outlined,
+                              size: 64,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Chưa có chương nào',
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : Container(
+                      height: 400, // Chiều cao cố định
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                            color: Theme.of(context).colorScheme.outlineVariant),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: ListView.builder(
+                        padding: EdgeInsets.zero,
+                        itemCount: detail.chapters.length,
+                        itemBuilder: (context, index) {
+                          // Đảo ngược thứ tự: newest chapter (largest) at top
+                          final reversedIndex = detail.chapters.length - 1 - index;
+                          final chapter = detail.chapters[reversedIndex];
+                          // 5 chương cũ nhất (oldest) là miễn phí -> trong view ngược, là 5 đầu tiên
+                          final isFree = reversedIndex < 5;
+                          return _buildChapterTile(
+                            chapter,
+                            reversedIndex,
+                            detail.title,
+                            detail.chapters.length,
+                            isFree,
+                          );
+                        },
+                      ),
+                    ),
+            ),
           ],
         ),
       ),
-
-      // Danh sách chapters
-      if (detail.chapters.isEmpty)
-        const SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.all(32),
-            child: Center(child: Text('Chưa có chương nào.')),
-          ),
-        )
-      else
-        SliverList(
-          delegate: SliverChildBuilderDelegate((context, index) {
-            final chapter = detail.chapters[index];
-            // Giả lập logic: Danh sách chapter từ API xếp từ mới -> cũ.
-            // Nghĩa là index 0 là tập mới nhất. index càng lớn càng cũ.
-            // Ta cho 5 chương cũ nhất (tức index gần bằng chiều dài mảng) là miễn phí.
-            // Các chương còn lại (với chapter length > 5) là Premium.
-            final isFree = index >= detail.chapters.length - 5;
-            return _buildChapterTile(
-              chapter,
-              index,
-              detail.title,
-              detail.chapters.length,
-              isFree,
-            );
-          }, childCount: detail.chapters.length),
-        ),
 
       // Padding bottom
       const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -433,6 +472,16 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
     int totalChapters,
     bool isFree,
   ) {
+    // Trích xuất số từ tên chương (vd: "Chương 100" -> "100")
+    String displayNum = '';
+    final match = RegExp(r'(\d+)').firstMatch(chapter.name);
+    if (match != null) {
+      displayNum = match.group(0)!;
+    } else {
+      // Nếu không tìm thấy số, dùng index + 1 (vì index lúc này là reversedIndex)
+      displayNum = '${index + 1}';
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
@@ -442,11 +491,11 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
               : Colors.amber.shade100,
           child: isFree
               ? Text(
-                  '${totalChapters - index}', // Số thứ tự mô phỏng
+                  displayNum,
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.bold,
-                    fontSize: 12,
+                    fontSize: displayNum.length > 3 ? 10 : 12,
                   ),
                 )
               : const Icon(

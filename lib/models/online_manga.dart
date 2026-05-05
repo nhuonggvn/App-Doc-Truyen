@@ -10,6 +10,8 @@ class OnlineManga {
   final String title;
   final String? image; // URL ảnh bìa từ server
   final String? status; // Trạng thái: Đang tiến hành, Hoàn thành, ...
+  final String? author; // Tác giả
+  final String? description; // Mô tả
   final DateTime? updatedAt; // Thời gian cập nhật gần nhất
   final int chapterCount; // Số lượng chương
 
@@ -19,6 +21,8 @@ class OnlineManga {
     required this.title,
     this.image,
     this.status,
+    this.author,
+    this.description,
     this.updatedAt,
     this.chapterCount = 0,
   });
@@ -50,6 +54,8 @@ class OnlineManga {
       title: json['title']?.toString() ?? 'Không có tiêu đề',
       image: json['image']?.toString(),
       status: json['status']?.toString(),
+      author: json['author']?.toString(),
+      description: json['description']?.toString(),
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'].toString())
           : null,

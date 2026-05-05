@@ -3,6 +3,7 @@
 
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../models/online_manga.dart';
 import 'custom_auth_service.dart';
@@ -466,6 +467,107 @@ class MangaApiService {
     } catch (e) {
       debugPrint('❌ Manga API lỗi tạo payment URL: $e');
       return null;
+    }
+  }
+  // ============= EDITOR APIs (GIAI ĐOẠN 2) =============
+
+  /// Lấy danh sách truyện do chính Editor/Admin này quản lý
+  static Future<List<OnlineManga>> getEditorMangas() async {
+    try {
+      final uri = Uri.parse('$baseUrl/manga/manage');
+      final headers = await _getHeaders();
+      final response = await http.get(uri, headers: headers).timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        if (jsonData['success'] == true && jsonData['data'] != null) {
+          final items = jsonData['data'] as List?;
+          return items
+                  ?.map((item) => OnlineManga.fromJson(item))
+                  .toList() ??
+              [];
+        }
+      }
+      return [];
+    } catch (e) {
+      debugPrint('❌ Manga API lỗi tải danh sách quản lý: $e');
+      return [];
+    }
+  }
+
+  /// Tạo truyện mới: POST /manga
+  static Future<bool> createManga({
+    required String title,
+    String? author,
+    String? description,
+    required String status,
+    required File coverFile,
+    bool? isVip,
+    String? genres,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/manga');
+      final request = http.MultipartRequest('POST', uri);
+      
+      // Thêm token vào header
+      final token = await CustomAuthService.getStoredToken();
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+
+      // Thêm các trường text
+      request.fields['title'] = title;
+      request.fields['author'] = author ?? '';
+      request.fields['description'] = description ?? '';
+      request.fields['status'] = status;
+      request.fields['isVip'] = (isVip ?? false).toString();
+      request.fields['genres'] = genres ?? '';
+
+      // Thêm file ảnh bìa
+      request.files.add(await http.MultipartFile.fromPath('thumbnail', coverFile.path));
+
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 30));
+      final response = await http.Response.fromStream(streamedResponse);
+
+      return response.statusCode == 201 || response.statusCode == 200;
+    } catch (e) {
+      debugPrint('❌ Manga API lỗi tạo truyện: $e');
+      return false;
+    }
+  }
+
+  /// Tạo chương mới: POST /manga/chapter
+  static Future<bool> createChapter({
+    required String mangaSlug,
+    required String chapterNum,
+    String? title,
+    required List<File> imageFiles,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/manga/chapter');
+      final request = http.MultipartRequest('POST', uri);
+      
+      final token = await CustomAuthService.getStoredToken();
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+
+      request.fields['mangaSlug'] = mangaSlug;
+      request.fields['chapterNum'] = chapterNum;
+      request.fields['title'] = title ?? '';
+
+      // Thêm danh sách ảnh nội dung
+      for (var i = 0; i < imageFiles.length; i++) {
+        request.files.add(await http.MultipartFile.fromPath('images', imageFiles[i].path));
+      }
+
+      final streamedResponse = await request.send().timeout(const Duration(minutes: 5));
+      final response = await http.Response.fromStream(streamedResponse);
+
+      return response.statusCode == 201 || response.statusCode == 200;
+    } catch (e) {
+      debugPrint('❌ Manga API lỗi tạo chương: $e');
+      return false;
     }
   }
 }

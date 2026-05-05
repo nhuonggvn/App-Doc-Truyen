@@ -45,7 +45,35 @@ class StoryCard extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: _buildCoverImage(context),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildCoverImage(context),
+                    // Status badge cho StoryCard
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(story.status),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          story.status,
+                          style: const TextStyle(
+                            fontSize: 8,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
 
@@ -315,9 +343,9 @@ class StoryGridCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Status badge
+                  // Status badge - Dời lên trên giống trang Online
                   Positioned(
-                    bottom: 8,
+                    top: 8,
                     left: 8,
                     child: Container(
                       padding: const EdgeInsets.symmetric(

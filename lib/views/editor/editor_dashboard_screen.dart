@@ -3,6 +3,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'manga_form_screen.dart';
+import 'chapter_form_screen.dart';
+import 'editor_manga_list_screen.dart';
 import '../../viewmodels/auth_provider.dart';
 
 /// Màn hình Dashboard quản lý nội dung cho Editor
@@ -18,9 +21,11 @@ class EditorDashboardScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Quản Lý Nội Dung'),
         centerTitle: true,
-        backgroundColor: const Color(0xFF1565C0),
-        foregroundColor: Colors.white,
+        elevation: 0,
+        backgroundColor: Theme.of(context).cardColor,
+        foregroundColor: Theme.of(context).textTheme.titleLarge?.color,
       ),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -55,7 +60,10 @@ class EditorDashboardScreen extends StatelessWidget {
                   icon: Icons.add_circle_outline,
                   label: 'Thêm\nTruyện mới',
                   color: const Color(0xFF1565C0),
-                  onTap: () => _showComingSoon(context, 'Thêm truyện mới'),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MangaFormScreen()),
+                  ),
                 ),
 
                 // Quản lý truyện đã đăng
@@ -64,8 +72,10 @@ class EditorDashboardScreen extends StatelessWidget {
                   icon: Icons.edit_outlined,
                   label: 'Truyện\ncủa tôi',
                   color: const Color(0xFF00897B),
-                  onTap: () =>
-                      _showComingSoon(context, 'Quản lý truyện của tôi'),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const EditorMangaListScreen()),
+                  ),
                 ),
 
                 // Thêm chương mới
@@ -74,7 +84,10 @@ class EditorDashboardScreen extends StatelessWidget {
                   icon: Icons.playlist_add,
                   label: 'Thêm\nChương mới',
                   color: const Color(0xFFE64A19),
-                  onTap: () => _showComingSoon(context, 'Thêm chương mới'),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ChapterFormScreen()),
+                  ),
                 ),
 
                 // Quản lý bình luận
