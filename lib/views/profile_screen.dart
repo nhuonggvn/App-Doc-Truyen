@@ -13,6 +13,7 @@ import '../viewmodels/story_provider.dart';
 import '../viewmodels/theme_provider.dart';
 import '../viewmodels/online_manga_provider.dart';
 import '../services/manga_api_service.dart';
+import '../services/custom_auth_service.dart';
 import 'online_manga_detail_screen.dart';
 import 'editor/editor_dashboard_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -27,7 +28,10 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen>
     with WidgetsBindingObserver {
+  // Ảnh local đã chọn từ gallery (có ưu tiên cao nhất)
   String? _avatarPath;
+  // Ảnh Google (chỉ dùng khi chưa chọn ảnh local và API không có avatar)
+  String? _googlePhotoUrl;
   String _displayName = 'Người dùng';
   final ImagePicker _picker = ImagePicker();
 
@@ -61,8 +65,18 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _loadProfile() async {
     final prefs = await SharedPreferences.getInstance();
+    // Đọc ảnh local đã chọn (nếu có)
+    final savedAvatarPath = prefs.getString('avatar_path');
+    // Đọc ảnh Google đã lưu (nếu người dùng đăng nhập bằng Google)
+    final googlePhoto = await CustomAuthService.getGooglePhotoUrl();
     setState(() {
-      _avatarPath = prefs.getString('avatar_path');
+      // Chỉ sử dụng _avatarPath nếu file thực sự tồn tại
+      if (savedAvatarPath != null && File(savedAvatarPath).existsSync()) {
+        _avatarPath = savedAvatarPath;
+      } else {
+        _avatarPath = null;
+      }
+      _googlePhotoUrl = googlePhoto;
       _displayName = prefs.getString('display_name') ?? 'Người dùng';
     });
   }
@@ -76,7 +90,12 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _pickAvatar() async {
+    // Mở gallery - widget có thể bị tạm ngưng (pause) trong lúc này
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+
+    // Kiểm tra widget còn tồn tại không trước khi tiếp tục
+    if (!mounted) return;
+
     if (image != null) {
       // Lưu ảnh vào thư mục app
       final appDir = await getApplicationDocumentsDirectory();
@@ -87,9 +106,16 @@ class _ProfileScreenState extends State<ProfileScreen>
       final newPath = '${avatarDir.path}/avatar.jpg';
       await File(image.path).copy(newPath);
 
+      // Kiểm tra lần nữa sau các thao tác async file I/O
+      if (!mounted) return;
+
       setState(() {
         _avatarPath = newPath;
+        // Khi người dùng chủ động chọn ảnh mới, bỏ qua ảnh Google
+        _googlePhotoUrl = null;
       });
+
+      // Lưu vào SharedPreferences
       await _saveProfile();
     }
   }
@@ -371,6 +397,28 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  /// Xây dựng ImageProvider theo thứ tự ưu tiên:
+  /// 1. Ảnh local đã chọn từ gallery (ưu tiên cao nhất - user chủ động chọn)
+  /// 2. Ảnh avatar từ API server (profile đã cài đặt trên server)
+  /// 3. Ảnh Google Photo (khi đăng nhập bằng Google)
+  /// 4. null → CircleAvatar sẽ hiển thị Icon mặc định
+  ImageProvider? _buildAvatarImage(AppUser? appUser) {
+    // 1. Ảnh local đã chọn
+    if (_avatarPath != null && File(_avatarPath!).existsSync()) {
+      return FileImage(File(_avatarPath!));
+    }
+    // 2. Avatar từ API
+    if (appUser?.avatar != null && appUser!.avatar!.isNotEmpty) {
+      return NetworkImage(appUser.avatar!);
+    }
+    // 3. Ảnh Google Photo
+    if (_googlePhotoUrl != null && _googlePhotoUrl!.isNotEmpty) {
+      return NetworkImage(_googlePhotoUrl!);
+    }
+    // 4. Không có ảnh
+    return null;
+  }
+
   Widget _buildManagerPanel(BuildContext context, AuthProvider auth) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -486,17 +534,18 @@ class _ProfileScreenState extends State<ProfileScreen>
                   child: CircleAvatar(
                     radius: 50,
                     backgroundColor: Colors.white10,
-                    backgroundImage:
-                        _avatarPath != null && File(_avatarPath!).existsSync()
-                        ? FileImage(File(_avatarPath!))
-                        : (appUser?.avatar != null
-                              ? NetworkImage(appUser!.avatar!)
-                              : null),
-                    child:
-                        (_avatarPath == null ||
-                                !File(_avatarPath!).existsSync()) &&
-                            appUser?.avatar == null
-                        ? const Icon(Icons.person, size: 50, color: Colors.grey)
+                    // Thứ tự ưu tiên:
+                    // 1. Ảnh local đã chọn từ gallery (cao nhất)
+                    // 2. Ảnh avatar từ API server
+                    // 3. Ảnh Google Photo (khi đăng nhập bằng Google)
+                    // 4. Icon mặc định (thấp nhất)
+                    backgroundImage: _buildAvatarImage(appUser),
+                    child: _buildAvatarImage(appUser) == null
+                        ? const Icon(
+                            Icons.person,
+                            size: 50,
+                            color: Colors.grey,
+                          )
                         : null,
                   ),
                 ),

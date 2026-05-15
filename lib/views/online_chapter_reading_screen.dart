@@ -28,8 +28,10 @@ class _OnlineChapterReadingScreenState extends State<OnlineChapterReadingScreen>
   bool _showControls = true;
   final ScrollController _scrollController = ScrollController();
   
-  OnlineChapter? _previousChapter;
-  OnlineChapter? _nextChapter;
+  // Chapter số lớn hơn (mới hơn) - hiển thị khi bấm mũi tên PHẢI
+  OnlineChapter? _newerChapter;
+  // Chapter số nhỏ hơn (cũ hơn) - hiển thị khi bấm mũi tên TRÁI
+  OnlineChapter? _olderChapter;
 
   @override
   void initState() {
@@ -79,14 +81,14 @@ class _OnlineChapterReadingScreenState extends State<OnlineChapterReadingScreen>
     final chapters = detail.chapters;
     for (int i = 0; i < chapters.length; i++) {
       if (chapters[i].apiId == widget.chapter.apiId) {
-        // Trong API thường xếp mới nhất ở đầu (index 0).
-        // Tập tiếp theo (đọc tiếp) sẽ là index - 1.
-        // Tập trước đó sẽ là index + 1.
+        // API xếp theo thứ tự TĂNG DẦN (index 0 = chapter nhỏ nhất/cũ nhất).
+        // → chapters[i - 1] = số NHỎ hơn (cũ hơn) → mũi tên TRÁI
+        // → chapters[i + 1] = số LỚN hơn (mới hơn) → mũi tên PHẢI
         if (i > 0) {
-          _nextChapter = chapters[i - 1]; 
+          _olderChapter = chapters[i - 1]; // số nhỏ hơn - mũi tên TRÁI
         }
         if (i < chapters.length - 1) {
-          _previousChapter = chapters[i + 1]; 
+          _newerChapter = chapters[i + 1]; // số lớn hơn - mũi tên PHẢI
         }
         break;
       }
@@ -202,22 +204,22 @@ class _OnlineChapterReadingScreenState extends State<OnlineChapterReadingScreen>
                       () => Navigator.popUntil(context, (route) => route.isFirst),
                     ),
 
-                    // Nút chapter trước (về logic hiển thị)
+                    // Nút chapter nhỏ hơn (cũ hơn) - mũi tên TRÁI
                     _buildIconOnlyButton(
                       Icons.chevron_left,
-                      _previousChapter != null
-                          ? () => _goToChapter(_previousChapter!)
+                      _olderChapter != null
+                          ? () => _goToChapter(_olderChapter!)
                           : null,
                     ),
 
                     // Dropdown chọn chapter
                     Flexible(flex: 2, child: _buildChapterSelector(provider)),
 
-                    // Nút chapter sau
+                    // Nút chapter lớn hơn (mới hơn) - mũi tên PHẢI
                     _buildIconOnlyButton(
                       Icons.chevron_right,
-                      _nextChapter != null
-                          ? () => _goToChapter(_nextChapter!)
+                      _newerChapter != null
+                          ? () => _goToChapter(_newerChapter!)
                           : null,
                     ),
 
@@ -381,7 +383,7 @@ class _OnlineChapterReadingScreenState extends State<OnlineChapterReadingScreen>
         isDense: true,
         isExpanded: true,
         icon: const Icon(Icons.arrow_drop_down, color: Colors.white, size: 20),
-        items: detail.chapters.map((chapter) {
+        items: detail.chapters.reversed.map((chapter) {
           return DropdownMenuItem<String>(
             value: chapter.apiId,
             child: Text(

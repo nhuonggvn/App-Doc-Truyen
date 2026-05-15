@@ -339,7 +339,7 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () => _openChapter(
-                          detail.chapters.last, // Tập đầu tiên
+                          detail.chapters.first, // API tăng dần: first = chapter nhỏ nhất (tập đầu tiên)
                           detail.title,
                           true,
                         ),
@@ -351,9 +351,9 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: () => _openChapter(
-                          detail.chapters.first, // Tập mới nhất
+                          detail.chapters.last, // API tăng dần: last = chapter lớn nhất (tập mới nhất)
                           detail.title,
-                          false, // TODO: Logic tính phí sau
+                          false,
                         ),
                         icon: const Icon(Icons.play_arrow),
                         label: const Text('Đọc tiếp'),

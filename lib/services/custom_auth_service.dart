@@ -130,6 +130,31 @@ class CustomAuthService {
     }
   }
 
+  // Key SharedPreferences để lưu ảnh Google
+  static const String _googlePhotoKey = 'google_photo_url';
+
+  /// Lưu Google photo URL vào SharedPreferences
+  static Future<void> saveGooglePhotoUrl(String? photoUrl) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      await prefs.setString(_googlePhotoKey, photoUrl);
+    } else {
+      await prefs.remove(_googlePhotoKey);
+    }
+  }
+
+  /// Lấy Google photo URL đã lưu
+  static Future<String?> getGooglePhotoUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_googlePhotoKey);
+  }
+
+  /// Xóa Google photo URL khi đăng xuất
+  static Future<void> clearGooglePhotoUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_googlePhotoKey);
+  }
+
   /// Đăng nhập bằng Google
   /// (Mô phỏng: Dùng email Google làm username và tự sinh password)
   static Future<AppUser> loginWithGoogle() async {
@@ -142,16 +167,26 @@ class CustomAuthService {
 
       final email = googleUser.email;
       final displayName = googleUser.displayName ?? 'Google User';
+      // Lưu ảnh Google ngay tại đây để dùng sau
+      final googlePhotoUrl = googleUser.photoUrl;
       final password = 'G_${email}_Spro_123!';
       final primaryUsername = _buildGoogleUsername(email);
       final fallbackUsername = _buildGoogleFallbackUsername(email);
 
-      // Ưu tiên email trước nếu login bình thường, vì logs cho thấy tài khoản đang dùng email trực tiếp
+      // Hàm nội bộ: đăng nhập + lưu ảnh Google
+      Future<AppUser> loginAndSavePhoto(String username) async {
+        final user = await login(username: username, password: password);
+        // Lưu ảnh Google vào SharedPreferences để ProfileScreen dùng
+        await saveGooglePhotoUrl(googlePhotoUrl);
+        return user;
+      }
+
+      // Ưu tiên email trước nếu login bình thường
       final loginCandidates = <String>[email, primaryUsername];
       for (final username in loginCandidates) {
         try {
           debugPrint(' Auth: Thử đăng nhập Google với username=$username');
-          return await login(username: username, password: password);
+          return await loginAndSavePhoto(username);
         } on AuthException {
           // Bỏ qua để thử candidate tiếp theo.
         }
@@ -159,8 +194,9 @@ class CustomAuthService {
 
       // Nếu chưa có tài khoản thì tạo mới.
       debugPrint(' Auth: Chưa có tài khoản Google, tiến hành đăng ký mới...');
+      AppUser newUser;
       try {
-        return await register(
+        newUser = await register(
           username: primaryUsername,
           password: password,
           fullname: displayName,
@@ -170,12 +206,15 @@ class CustomAuthService {
         debugPrint(
           ' Auth: Username Google chính bị trùng, thử username dự phòng...',
         );
-        return await register(
+        newUser = await register(
           username: fallbackUsername,
           password: password,
           fullname: displayName,
         );
       }
+      // Lưu ảnh Google sau khi đăng ký thành công
+      await saveGooglePhotoUrl(googlePhotoUrl);
+      return newUser;
     } catch (e) {
       if (e is AuthException) rethrow;
       debugPrint('Auth Google lỗi: $e');
@@ -295,7 +334,9 @@ class CustomAuthService {
       // Dù server lỗi vẫn xóa token local
       debugPrint('⚠️ Auth Logout server lỗi: $e - vẫn xóa token local');
     } finally {
+      // Xóa JWT token và ảnh Google
       await clearToken();
+      await clearGooglePhotoUrl();
     }
   }
 
