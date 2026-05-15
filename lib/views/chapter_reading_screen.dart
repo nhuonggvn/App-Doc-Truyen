@@ -25,8 +25,10 @@ class ChapterReadingScreen extends StatefulWidget {
 class _ChapterReadingScreenState extends State<ChapterReadingScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _showControls = true;
-  Chapter? _previousChapter;
-  Chapter? _nextChapter;
+  // Chapter số lớn hơn (mới hơn) - mũi tên PHẢI
+  Chapter? _newerChapter;
+  // Chapter số nhỏ hơn (cũ hơn) - mũi tên TRÁI
+  Chapter? _olderChapter;
 
   @override
   void initState() {
@@ -60,14 +62,14 @@ class _ChapterReadingScreenState extends State<ChapterReadingScreen> {
     final storyProvider = Provider.of<StoryProvider>(context, listen: false);
     final chapters = storyProvider.currentChapters;
 
-    // Tìm chapter trước và sau
+    // Database trả về giảm dần (DESC): i=0 là lớn nhất, i=last là nhỏ nhất
     for (int i = 0; i < chapters.length; i++) {
       if (chapters[i].id == widget.chapter.id) {
         if (i > 0) {
-          _previousChapter = chapters[i - 1]; // Chapter sau (số lớn hơn)
+          _newerChapter = chapters[i - 1]; // Chapter số lớn hơn (mới hơn)
         }
         if (i < chapters.length - 1) {
-          _nextChapter = chapters[i + 1]; // Chapter trước (số nhỏ hơn)
+          _olderChapter = chapters[i + 1]; // Chapter số nhỏ hơn (cũ hơn)
         }
         break;
       }
@@ -218,22 +220,22 @@ class _ChapterReadingScreenState extends State<ChapterReadingScreen> {
                           Navigator.popUntil(context, (route) => route.isFirst),
                     ),
 
-                    // Nút chapter trước (chỉ icon)
+                    // Nút chapter nhỏ hơn (cũ hơn) - mũi tên TRÁI
                     _buildIconOnlyButton(
                       Icons.chevron_left,
-                      _nextChapter != null
-                          ? () => _goToChapter(_nextChapter!)
+                      _olderChapter != null
+                          ? () => _goToChapter(_olderChapter!)
                           : null,
                     ),
 
                     // Dropdown chọn chapter
                     Flexible(flex: 2, child: _buildChapterSelector()),
 
-                    // Nút chapter sau (chỉ icon)
+                    // Nút chapter lớn hơn (mới hơn) - mũi tên PHẢI
                     _buildIconOnlyButton(
                       Icons.chevron_right,
-                      _previousChapter != null
-                          ? () => _goToChapter(_previousChapter!)
+                      _newerChapter != null
+                          ? () => _goToChapter(_newerChapter!)
                           : null,
                     ),
 

@@ -246,25 +246,42 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                 // Buttons hành động
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: chapters.isNotEmpty
-                              ? () => _readFromFirstChapter(chapters)
-                              : null,
-                          icon: const Icon(Icons.play_arrow),
-                          label: const Text('Đọc từ đầu'),
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: chapters.isNotEmpty
+                                  ? () => _readFromFirstChapter(chapters)
+                                  : null,
+                              icon: const Icon(Icons.menu_book),
+                              label: const Text('Đọc từ đầu'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: chapters.isNotEmpty
+                                  ? () => _readLatestChapter(chapters)
+                                  : null,
+                              icon: const Icon(Icons.play_arrow),
+                              label: const Text('Đọc tiếp'),
+                            ),
+                          ),
+                        ],
                       ),
-                      if (authProvider.isAdmin || authProvider.isEditor)
-                        Expanded(
+                      if (authProvider.isAdmin || authProvider.isEditor) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
                           child: FilledButton.tonalIcon(
                             onPressed: () => _addNewChapter(),
                             icon: const Icon(Icons.add),
-                            label: const Text('Thêm chương'),
+                            label: const Text('Thêm chương mới'),
                           ),
                         ),
+                      ],
                     ],
                   ),
                 ),
@@ -338,10 +355,10 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                         padding: EdgeInsets.zero,
                         itemCount: chapters.length,
                         itemBuilder: (context, index) {
-                          // Hiển thị chapter lớn nhất (mới nhất) lên trên
-                          final reversedIndex = chapters.length - 1 - index;
-                          final chapter = chapters[reversedIndex];
-                          return _buildChapterTile(chapter, reversedIndex);
+                          // Database đã trả về chapter mới nhất lên đầu (DESC)
+                          // nên ta hiển thị trực tiếp theo index
+                          final chapter = chapters[index];
+                          return _buildChapterTile(chapter, index);
                         },
                       ),
                     ),
@@ -626,12 +643,19 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
 
   void _readFromFirstChapter(List<Chapter> chapters) {
     if (chapters.isEmpty) return;
-    // Tìm chapter có số nhỏ nhất
+    // Tìm chapter có số nhỏ nhất (Tập 1)
     final firstChapter = chapters.reduce(
       (a, b) => a.chapterNumber < b.chapterNumber ? a : b,
     );
     final index = chapters.indexOf(firstChapter);
     _handleReadChapter(firstChapter, index);
+  }
+
+  void _readLatestChapter(List<Chapter> chapters) {
+    if (chapters.isEmpty) return;
+    // Database đã trả về giảm dần (DESC) nên chapters.first là chương mới nhất
+    final latestChapter = chapters.first;
+    _handleReadChapter(latestChapter, 0);
   }
 
   Future<void> _handleReadChapter(Chapter chapter, int index) async {
