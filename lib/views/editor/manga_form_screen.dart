@@ -229,7 +229,7 @@ class _MangaFormScreenState extends State<MangaFormScreen> {
 
               // Trạng thái
               DropdownButtonFormField<String>(
-                value: _status,
+                initialValue: _status,
                 decoration: const InputDecoration(
                   labelText: 'Trạng thái',
                   prefixIcon: Icon(Icons.bookmark),

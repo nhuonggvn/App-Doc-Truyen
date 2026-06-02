@@ -193,7 +193,7 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen>
               id: slug, // History API không trả về id, dùng slug tạm
               slug: slug,
               title: title,
-              image: imageUrl != null ? imageUrl.toString() : null,
+              image: imageUrl?.toString(),
             );
             Navigator.push(
               context,

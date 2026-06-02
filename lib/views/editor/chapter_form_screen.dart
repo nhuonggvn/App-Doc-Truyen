@@ -24,7 +24,7 @@ class _ChapterFormScreenState extends State<ChapterFormScreen> {
   late TextEditingController _chapterNumController;
   late TextEditingController _chapterTitleController;
   
-  List<File> _imageFiles = [];
+  final List<File> _imageFiles = [];
   bool _isLoading = false;
   OnlineManga? _selectedManga;
 

@@ -397,8 +397,9 @@ class MangaApiService {
   }) async {
     try {
       final headers = await _getHeaders();
-      if (!headers.containsKey('Authorization'))
+      if (!headers.containsKey('Authorization')) {
         return false; // Guest không lưu lịch sử Cloud
+      }
 
       final body = json.encode({
         'mangaSlug': mangaSlug,

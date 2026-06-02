@@ -237,8 +237,9 @@ class CustomAuthService {
         'username': username.trim(),
         'password': password,
       };
-      if (fullname != null && fullname.isNotEmpty)
+      if (fullname != null && fullname.isNotEmpty) {
         body['fullname'] = fullname.trim();
+      }
       if (phone != null && phone.isNotEmpty) body['phone'] = phone.trim();
 
       final response = await http

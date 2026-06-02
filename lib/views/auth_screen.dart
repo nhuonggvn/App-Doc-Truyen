@@ -266,8 +266,9 @@ class _AuthScreenState extends State<AuthScreen>
             label: 'Tên đăng nhập',
             icon: Icons.person_outline_rounded,
             validator: (v) {
-              if (v == null || v.trim().isEmpty)
+              if (v == null || v.trim().isEmpty) {
                 return 'Vui lòng nhập tên đăng nhập';
+              }
               return null;
             },
           ),
@@ -402,11 +403,13 @@ class _AuthScreenState extends State<AuthScreen>
             label: 'Tên đăng nhập *',
             icon: Icons.alternate_email_rounded,
             validator: (v) {
-              if (v == null || v.trim().isEmpty)
+              if (v == null || v.trim().isEmpty) {
                 return 'Vui lòng nhập tên đăng nhập';
+              }
               if (v.trim().length < 4) return 'Tên đăng nhập ít nhất 4 ký tự';
-              if (v.contains(' '))
+              if (v.contains(' ')) {
                 return 'Tên đăng nhập không được có khoảng trắng';
+              }
               return null;
             },
           ),
@@ -449,8 +452,9 @@ class _AuthScreenState extends State<AuthScreen>
               () => _isConfirmPasswordVisible = !_isConfirmPasswordVisible,
             ),
             validator: (v) {
-              if (v != _registerPasswordController.text)
+              if (v != _registerPasswordController.text) {
                 return 'Mật khẩu không khớp';
+              }
               return null;
             },
           ),
