@@ -13,7 +13,7 @@ class OnlineManga {
   final String? author; // Tác giả
   final String? description; // Mô tả
   final DateTime? updatedAt; // Thời gian cập nhật gần nhất
-  final int chapterCount; // Số lượng chương
+  final int chapters; // Số lượng chương
 
   OnlineManga({
     required this.id,
@@ -24,28 +24,84 @@ class OnlineManga {
     this.author,
     this.description,
     this.updatedAt,
-    this.chapterCount = 0,
+    this.chapters = 0,
   });
 
   /// Tạo OnlineManga từ JSON trả về bởi API
   factory OnlineManga.fromJson(Map<String, dynamic> json) {
     // Lấy số chương từ API nếu có
-    int chaptersCount = 0;
+    int chapters = 0;
 
-    // Thử nhiều tên field khác nhau
-    if (json['chapterCount'] != null) {
-      chaptersCount = int.tryParse(json['chapterCount'].toString()) ?? 0;
-    } else if (json['totalChapters'] != null) {
-      chaptersCount = int.tryParse(json['totalChapters'].toString()) ?? 0;
-    } else if (json['numChapters'] != null) {
-      chaptersCount = int.tryParse(json['numChapters'].toString()) ?? 0;
-    } else if (json['chapters'] != null && json['chapters'] is List) {
-      chaptersCount = (json['chapters'] as List).length;
+    // Danh sách các phím có khả năng chứa số lượng chương từ các API khác nhau
+    final possibleCountKeys = [
+      'chapterCount', 'chaptersCount', 'chapters_count', 'chapter_count',
+      'countChapters', 'count_chapters', 'totalChapters', 'total_chapters',
+      'chapter_total', 'total_chapter', 'numChapters', 'num_chapters',
+      'chapters_num', 'chaptersNum', 'count_chapter', 'countChapter',
+      'total', 'count'
+    ];
+
+    for (final key in possibleCountKeys) {
+      if (json[key] != null) {
+        final val = int.tryParse(json[key].toString());
+        if (val != null && val > 0) {
+          chapters = val;
+          break;
+        }
+      }
     }
 
+    // Kiểm tra trong các object lồng nhau thường gặp: stats, meta
+    if (chapters == 0) {
+      for (final parentKey in ['stats', 'meta', 'statistics']) {
+        if (json[parentKey] is Map) {
+          final subMap = json[parentKey] as Map<String, dynamic>;
+          for (final key in possibleCountKeys) {
+            if (subMap[key] != null) {
+              final val = int.tryParse(subMap[key].toString());
+              if (val != null && val > 0) {
+                chapters = val;
+                break;
+              }
+            }
+          }
+        }
+        if (chapters > 0) break;
+      }
+    }
+
+    // Nếu vẫn bằng 0, kiểm tra phím 'chapters' (có thể là List, Map hoặc Number)
+    if (chapters == 0 && json['chapters'] != null) {
+      final chaptersJson = json['chapters'];
+      if (chaptersJson is List) {
+        chapters = chaptersJson.length;
+      } else if (chaptersJson is Map) {
+        final chaptersMap = json['chapters'] as Map<String, dynamic>;
+        chapters = int.tryParse((chaptersMap['total'] ??
+                    chaptersMap['count'] ??
+                    chaptersMap['total_chapters'] ??
+                    chaptersMap['length'] ??
+                    '0')
+                .toString()) ??
+            0;
+      } else {
+        // Trường hợp chapters là một con số trực tiếp
+        chapters = int.tryParse(chaptersJson.toString()) ?? 0;
+      }
+    }
+
+    // Cuối cùng, nếu vẫn bằng 0, thử lấy từ phím 'last_chapter' (vd: "Chapter 165")
+    if (chapters == 0 && json['last_chapter'] != null) {
+      final lastChapter = json['last_chapter'].toString();
+      final match = RegExp(r'(\d+)').firstMatch(lastChapter);
+      if (match != null) {
+        chapters = int.parse(match.group(1)!);
+      }
+    }
+    
     // Debug log để kiểm tra dữ liệu từ API
     debugPrint(
-      '📖 OnlineManga.fromJson - title: ${json['title']}, chapterCount: $chaptersCount, keys: ${json.keys.toList()}',
+      '📖 OnlineManga.fromJson - title: ${json['title']}, chapters: $chapters, keys: ${json.keys.toList()}',
     );
 
     return OnlineManga(
@@ -59,7 +115,7 @@ class OnlineManga {
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'].toString())
           : null,
-      chapterCount: chaptersCount,
+      chapters: chapters,
     );
   }
 
