@@ -368,7 +368,7 @@ class _OnlineScreenState extends State<OnlineScreen> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${manga.chapterCount} chương',
+                      '${manga.chapters} chương',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.outline,
                         fontSize: 11,
@@ -435,7 +435,7 @@ class _OnlineScreenState extends State<OnlineScreen> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${manga.chapterCount} chương',
+                          '${manga.chapters} chương',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
                                 color: Theme.of(context).colorScheme.outline,
