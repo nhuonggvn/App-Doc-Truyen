@@ -109,9 +109,7 @@ class _OnlineScreenState extends State<OnlineScreen> {
 
       body: Column(
         children: [
-          // Thanh bộ lọc loại truyện (chỉ hiện khi không tìm kiếm) git push spro
-  0e15320c1261b223c99b3b596c36aca752669539:API_Ma
-  nga --forces
+          // Thanh bộ lọc loại truyện (chỉ hiện khi không tìm kiếm)
           if (!_isSearchMode) _buildTypeFilterBar(provider),
 
           // Nội dung chính

@@ -62,7 +62,7 @@ class ThemeProvider with ChangeNotifier {
       foregroundColor: Color(0xFF263238),
       toolbarHeight: 35, // chỉnh độ cao header
       titleTextStyle: TextStyle(
-        fontSize: 16,
+        fontSize: 22,
         fontWeight: FontWeight.bold,
         color: Color(0xFF263238),
       ),
