@@ -60,6 +60,13 @@ class ThemeProvider with ChangeNotifier {
       elevation: 0,
       backgroundColor: Colors.white,
       foregroundColor: Color(0xFF263238),
+      toolbarHeight: 35, // chỉnh độ cao header
+      titleTextStyle: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+        color: Color(0xFF263238),
+      ),
+      iconTheme: IconThemeData(size: 25),
     ),
     cardTheme: CardThemeData(
       elevation: 2,
@@ -117,6 +124,13 @@ class ThemeProvider with ChangeNotifier {
       centerTitle: true,
       elevation: 0,
       backgroundColor: Color(0xFF2D2D2D),
+      toolbarHeight: 35, // chỉnh độ cao header
+      titleTextStyle: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+        color: Color(0xFFEEEEEE),
+      ),
+      iconTheme: IconThemeData(size: 20),
     ),
     cardTheme: CardThemeData(
       elevation: 2,

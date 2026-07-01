@@ -57,26 +57,38 @@ class _HomeScreenState extends State<HomeScreen> {
             : const Text('Truyện Tranh'),
         actions: [
           // Toggle search
-          IconButton(
-            icon: Icon(_isSearching ? Icons.close : Icons.search),
-            onPressed: () {
-              setState(() {
-                _isSearching = !_isSearching;
-                if (!_isSearching) {
-                  _searchController.clear();
-                  storyProvider.clearSearch();
-                }
-              });
-            },
+          SizedBox(
+            width: 35, // chỉnh kích thước nút tìm kiếm
+            height: 35,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              iconSize: 22,
+              icon: Icon(_isSearching ? Icons.close : Icons.search),
+              onPressed: () {
+                setState(() {
+                  _isSearching = !_isSearching;
+                  if (!_isSearching) {
+                    _searchController.clear();
+                    storyProvider.clearSearch();
+                  }
+                });
+              },
+            ),
           ),
           // Toggle view mode
-          IconButton(
-            icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
-            onPressed: () {
-              setState(() {
-                _isGridView = !_isGridView;
-              });
-            },
+          SizedBox(
+            width: 35, // chỉnh kích thước nút view
+            height: 35,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              iconSize: 25,
+              icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
+              onPressed: () {
+                setState(() {
+                  _isGridView = !_isGridView;
+                });
+              },
+            ),
           ),
         ],
       ),

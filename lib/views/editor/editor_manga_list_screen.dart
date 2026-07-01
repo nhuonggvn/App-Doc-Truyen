@@ -48,9 +48,15 @@ class _EditorMangaListScreenState extends State<EditorMangaListScreen> {
       appBar: AppBar(
         title: const Text('Truyện Của Tôi'),
         actions: [
-          IconButton(
-            onPressed: _fetchMangas,
-            icon: const Icon(Icons.refresh_rounded),
+          SizedBox(
+            width: 35, // chỉnh kích thước nút load lại
+            height: 35,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              iconSize: 25,
+              onPressed: _fetchMangas,
+              icon: const Icon(Icons.refresh_rounded),
+            ),
           ),
         ],
       ),

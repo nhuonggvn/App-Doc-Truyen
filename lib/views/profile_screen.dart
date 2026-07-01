@@ -192,9 +192,15 @@ class _ProfileScreenState extends State<ProfileScreen>
         centerTitle: true,
         // Không hardcode: tự lấy theo AppBarTheme
         actions: [
-          IconButton(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+          SizedBox(
+            width: 35, // chỉnh kích thước nút đăng xuất
+            height: 35,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              iconSize: 25,
+              onPressed: _logout,
+              icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+            ),
           ),
         ],
       ),

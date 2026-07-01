@@ -86,24 +86,32 @@ class _OnlineScreenState extends State<OnlineScreen> {
             : const Text('Truyện Online'),
         actions: [
           // Nút bật/tắt tìm kiếm
-          IconButton(
-            icon: Icon(_isSearchMode ? Icons.close : Icons.search),
-            onPressed: () {
-              setState(() {
-                _isSearchMode = !_isSearchMode;
-                if (!_isSearchMode) {
-                  _searchController.clear();
-                  provider.clearSearch();
-                }
-              });
-            },
+          SizedBox(
+            width: 35, // chỉnh kích thước nút tìm kiếm
+            height: 35,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              iconSize: 25,
+              icon: Icon(_isSearchMode ? Icons.close : Icons.search),
+              onPressed: () {
+                setState(() {
+                  _isSearchMode = !_isSearchMode;
+                  if (!_isSearchMode) {
+                    _searchController.clear();
+                    provider.clearSearch();
+                  }
+                });
+              },
+            ),
           ),
         ],
       ),
 
       body: Column(
         children: [
-          // Thanh bộ lọc loại truyện (chỉ hiện khi không tìm kiếm)
+          // Thanh bộ lọc loại truyện (chỉ hiện khi không tìm kiếm) git push spro
+  0e15320c1261b223c99b3b596c36aca752669539:API_Ma
+  nga --forces
           if (!_isSearchMode) _buildTypeFilterBar(provider),
 
           // Nội dung chính

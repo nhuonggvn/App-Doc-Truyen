@@ -38,12 +38,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         backgroundColor: Theme.of(context).cardColor,
         foregroundColor: Theme.of(context).textTheme.titleLarge?.color,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Làm mới thống kê',
-            onPressed: () {
-              Provider.of<AdminProvider>(context, listen: false).refreshStats();
-            },
+          SizedBox(
+            width: 35, // chỉnh kích thước nút load lại
+            height: 35,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              iconSize: 25,
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Làm mới thống kê',
+              onPressed: () {
+                Provider.of<AdminProvider>(context, listen: false).refreshStats();
+              },
+            ),
           ),
         ],
       ),
