@@ -37,6 +37,21 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
     });
   }
 
+  int _getDisplayChaptersCount(List<OnlineChapter> chapters) {
+    if (chapters.isEmpty) return 0;
+    int maxChapter = 0;
+    for (final ch in chapters) {
+      final match = RegExp(r'(\d+)').firstMatch(ch.name);
+      if (match != null) {
+        final val = int.tryParse(match.group(1)!) ?? 0;
+        if (val > maxChapter) {
+          maxChapter = val;
+        }
+      }
+    }
+    return maxChapter > 0 ? maxChapter : chapters.length;
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<OnlineMangaProvider>(context);
@@ -247,7 +262,7 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
                       const SizedBox(width: 8),
                       _buildInfoChip(
                         Icons.menu_book,
-                        '${detail.chapters.length} chương',
+                        '${_getDisplayChaptersCount(detail.chapters)} chương',
                         Theme.of(context).colorScheme.primaryContainer,
                       ),
                     ],
@@ -376,7 +391,7 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Danh sách chương (${detail.chapters.length})',
+                    'Danh sách chương (${_getDisplayChaptersCount(detail.chapters)})',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),

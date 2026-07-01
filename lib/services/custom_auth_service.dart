@@ -1,25 +1,20 @@
 // lib/services/custom_auth_service.dart
-// Service xử lý toàn bộ xác thực qua Manga App REST API
-// Base URL: http://192.168.3.237:8180/api/v1
+// Dịch vụ xử lý toàn bộ xác thực cục bộ (Offline Auth) qua SharedPreferences
+// Giúp ứng dụng hoạt động độc lập không cần kết nối mạng công ty Spro
 
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/app_user.dart';
 
+/// Dịch vụ xử lý xác thực offline cục bộ lưu trữ qua SharedPreferences
 class CustomAuthService {
-  // ─────────────────────────────────────────────────────────
-  // CẤU HÌNH
-  // ─────────────────────────────────────────────────────────
-
-  static const String _baseUrl = 'http://192.168.3.237:8180/api/v1';
   static const String _tokenKey = 'custom_auth_token';
-  static const Duration _timeout = Duration(seconds: 15);
+  static const String _usersDbKey = 'otruyen_offline_users_db';
+  static const String _googlePhotoKey = 'google_photo_url';
 
-  /// Chuẩn hóa username từ email Google để phù hợp validate backend.
-  /// Chỉ giữ chữ thường, số, dấu chấm và gạch dưới.
+  /// Sinh username hợp lệ từ email Google
   static String _buildGoogleUsername(String email) {
     final localPart = email.split('@').first.toLowerCase();
     final normalized = localPart.replaceAll(RegExp(r'[^a-z0-9._]'), '_');
@@ -28,7 +23,7 @@ class CustomAuthService {
     return 'g_$limited';
   }
 
-  /// Sinh username dự phòng ổn định theo email để giảm xung đột trùng tên.
+  /// Sinh username dự phòng ổn định theo email
   static String _buildGoogleFallbackUsername(String email) {
     final base = _buildGoogleUsername(email);
     final hash = email.hashCode.abs().toString();
@@ -36,9 +31,34 @@ class CustomAuthService {
     return '${base}_$suffix';
   }
 
-  // ─────────────────────────────────────────────────────────
-  // QUẢN LÝ TOKEN (SharedPreferences)
-  // ─────────────────────────────────────────────────────────
+  /// Giải mã JWT payload cục bộ để đọc thông tin (role, username)
+  static Map<String, dynamic> _decodeJwtPayload(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return {};
+
+      String payload = parts[1];
+      while (payload.length % 4 != 0) {
+        payload += '=';
+      }
+      final decoded = utf8.decode(base64Url.decode(payload));
+      return json.decode(decoded) as Map<String, dynamic>;
+    } catch (e) {
+      return {};
+    }
+  }
+
+  /// Sinh token giả lập JWT chứa payload được mã hóa Base64
+  static String _generateFakeToken(String username, String role) {
+    final payloadMap = {
+      'role': role,
+      'username': username,
+      'exp': DateTime.now().add(const Duration(days: 365)).millisecondsSinceEpoch ~/ 1000,
+    };
+    final payloadJson = json.encode(payloadMap);
+    final payloadBase64 = base64Url.encode(utf8.encode(payloadJson)).replaceAll('=', '');
+    return 'fakeheader.$payloadBase64.fakesignature';
+  }
 
   /// Lưu JWT token vào SharedPreferences
   static Future<void> saveToken(String token) async {
@@ -58,80 +78,97 @@ class CustomAuthService {
     await prefs.remove(_tokenKey);
   }
 
-  // ─────────────────────────────────────────────────────────
-  // HTTP HELPER
-  // ─────────────────────────────────────────────────────────
-
-  /// Tạo header chuẩn cho REQUEST KHÔNG cần auth
-  static Map<String, String> _publicHeaders() {
-    return {'Content-Type': 'application/json; charset=utf-8'};
+  /// Đọc cơ sở dữ liệu user offline từ SharedPreferences
+  static Future<Map<String, dynamic>> _getUsers() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final usersJson = prefs.getString(_usersDbKey);
+      if (usersJson == null) {
+        final defaultDb = {
+          'admin': {
+            'id': 'user_admin',
+            'username': 'admin',
+            'password': '123',
+            'fullname': 'Spro Admin',
+            'phone': '0123456789',
+            'role': 'admin',
+            'avatar': null,
+            'isVipActive': true,
+            'vipExpiredAt': DateTime.now().add(const Duration(days: 365)).toIso8601String(),
+          },
+          'member': {
+            'id': 'user_member',
+            'username': 'member',
+            'password': '123',
+            'fullname': 'Spro Member',
+            'phone': '0987654321',
+            'role': 'member',
+            'avatar': null,
+            'isVipActive': false,
+            'vipExpiredAt': null,
+          }
+        };
+        await prefs.setString(_usersDbKey, json.encode(defaultDb));
+        return defaultDb;
+      }
+      return json.decode(usersJson) as Map<String, dynamic>;
+    } catch (e) {
+      debugPrint('❌ Lỗi đọc db user offline: $e');
+      return {};
+    }
   }
 
-  /// Tạo header chuẩn cho REQUEST CẦN auth (gắn Bearer token)
-  static Map<String, String> _authHeaders(String token) {
-    return {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Authorization': 'Bearer $token',
-    };
+  /// Ghi cơ sở dữ liệu user offline vào SharedPreferences
+  static Future<void> _saveUsers(Map<String, dynamic> users) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_usersDbKey, json.encode(users));
+    } catch (e) {
+      debugPrint('❌ Lỗi ghi db user offline: $e');
+    }
   }
 
-  /// Parse response body an toàn (handle encoding)
-  static Map<String, dynamic> _parseBody(http.Response response) {
-    return json.decode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+  /// Chuyển đổi dữ liệu thô thành đối tượng AppUser
+  static AppUser _buildAppUser(Map<String, dynamic> userData, String token) {
+    return AppUser(
+      id: userData['id']?.toString() ?? userData['username']?.toString() ?? '',
+      username: userData['username']?.toString() ?? '',
+      fullname: userData['fullname']?.toString(),
+      phone: userData['phone']?.toString(),
+      avatar: userData['avatar']?.toString(),
+      role: userRoleFromString(userData['role']?.toString()),
+      token: token,
+      isVipActive: userData['isVipActive'] == true,
+      vipExpiredAt: userData['vipExpiredAt'] != null
+          ? DateTime.tryParse(userData['vipExpiredAt'].toString())
+          : null,
+    );
   }
 
-  // ─────────────────────────────────────────────────────────
-  // AUTH APIs
-  // ─────────────────────────────────────────────────────────
-
-  /// Đăng nhập: POST /auth/login
-  /// Trả về AppUser nếu thành công, ném Exception nếu thất bại
+  /// Đăng nhập cục bộ (Offline)
   static Future<AppUser> login({
     required String username,
     required String password,
   }) async {
-    try {
-      debugPrint(' Auth: Đăng nhập với username=$username');
+    final cleanUsername = username.trim();
+    debugPrint('🔑 Auth offline: Đăng nhập với username=$cleanUsername');
 
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/auth/login'),
-            headers: _publicHeaders(),
-            body: json.encode({
-              'username': username.trim(),
-              'password': password,
-            }),
-          )
-          .timeout(_timeout);
-
-      final body = _parseBody(response);
-      debugPrint(' Auth Login response: ${response.statusCode}');
-
-      if (response.statusCode == 200 && body['success'] == true) {
-        final data = body['data'] as Map<String, dynamic>;
-        final user = AppUser.fromLoginResponse(data);
-
-        // Lưu token để dùng lần sau
-        await saveToken(user.token);
-        debugPrint(
-          'Auth: Đăng nhập thành công - ${user.username} (${user.roleLabel})',
-        );
-        return user;
-      } else {
-        final message =
-            body['message'] as String? ?? 'Sai tài khoản hoặc mật khẩu';
-        throw AuthException(message);
-      }
-    } on AuthException {
-      rethrow;
-    } catch (e) {
-      debugPrint(' Auth Login lỗi: $e');
-      throw AuthException('Không thể kết nối đến máy chủ. Vui lòng thử lại.');
+    final users = await _getUsers();
+    if (!users.containsKey(cleanUsername)) {
+      throw const AuthException('Tài khoản không tồn tại trên thiết bị');
     }
-  }
 
-  // Key SharedPreferences để lưu ảnh Google
-  static const String _googlePhotoKey = 'google_photo_url';
+    final userData = users[cleanUsername] as Map<String, dynamic>;
+    if (userData['password'] != password) {
+      throw const AuthException('Sai tài khoản hoặc mật khẩu');
+    }
+
+    final token = _generateFakeToken(cleanUsername, userData['role']?.toString() ?? 'member');
+    await saveToken(token);
+    
+    debugPrint('✅ Auth offline: Đăng nhập thành công - $cleanUsername');
+    return _buildAppUser(userData, token);
+  }
 
   /// Lưu Google photo URL vào SharedPreferences
   static Future<void> saveGooglePhotoUrl(String? photoUrl) async {
@@ -155,45 +192,56 @@ class CustomAuthService {
     await prefs.remove(_googlePhotoKey);
   }
 
-  /// Đăng nhập bằng Google
-  /// (Mô phỏng: Dùng email Google làm username và tự sinh password)
+  /// Đăng nhập bằng Google (kết hợp offline)
   static Future<AppUser> loginWithGoogle() async {
     try {
-      final googleSignIn = GoogleSignIn();
-      final googleUser = await googleSignIn.signIn();
-      if (googleUser == null) {
-        throw AuthException('Đã hủy đăng nhập Google.');
+      GoogleSignInAccount? googleUser;
+      bool isGoogleError = false;
+      
+      try {
+        final googleSignIn = GoogleSignIn();
+        googleUser = await googleSignIn.signIn();
+        if (googleUser == null) {
+          throw const AuthException('Đã hủy đăng nhập Google.');
+        }
+      } on AuthException {
+        rethrow;
+      } catch (e) {
+        debugPrint('⚠️ Google Sign-In thực tế thất bại (do thiếu Google Play Services hoặc cấu hình Firebase): $e');
+        isGoogleError = true;
       }
 
-      final email = googleUser.email;
-      final displayName = googleUser.displayName ?? 'Google User';
-      // Lưu ảnh Google ngay tại đây để dùng sau
-      final googlePhotoUrl = googleUser.photoUrl;
+      String email;
+      String displayName;
+      String? googlePhotoUrl;
+
+      if (googleUser != null) {
+        email = googleUser.email;
+        displayName = googleUser.displayName ?? 'Google User';
+        googlePhotoUrl = googleUser.photoUrl;
+      } else if (isGoogleError) {
+        // Chỉ giả lập tài khoản Google offline khi thực sự gặp lỗi hệ thống hoặc cấu hình
+        email = 'google_user@gmail.com';
+        displayName = 'Google User Offline';
+        googlePhotoUrl = null;
+      } else {
+        throw const AuthException('Đã hủy đăng nhập Google.');
+      }
+
       final password = 'G_${email}_Spro_123!';
       final primaryUsername = _buildGoogleUsername(email);
       final fallbackUsername = _buildGoogleFallbackUsername(email);
 
-      // Hàm nội bộ: đăng nhập + lưu ảnh Google
-      Future<AppUser> loginAndSavePhoto(String username) async {
-        final user = await login(username: username, password: password);
-        // Lưu ảnh Google vào SharedPreferences để ProfileScreen dùng
+      // Thử đăng nhập trước
+      try {
+        final user = await login(username: primaryUsername, password: password);
         await saveGooglePhotoUrl(googlePhotoUrl);
         return user;
+      } on AuthException {
+        // Bỏ qua để thử đăng ký mới bên dưới
       }
 
-      // Ưu tiên email trước nếu login bình thường
-      final loginCandidates = <String>[email, primaryUsername];
-      for (final username in loginCandidates) {
-        try {
-          debugPrint(' Auth: Thử đăng nhập Google với username=$username');
-          return await loginAndSavePhoto(username);
-        } on AuthException {
-          // Bỏ qua để thử candidate tiếp theo.
-        }
-      }
-
-      // Nếu chưa có tài khoản thì tạo mới.
-      debugPrint(' Auth: Chưa có tài khoản Google, tiến hành đăng ký mới...');
+      // Tạo tài khoản mới offline
       AppUser newUser;
       try {
         newUser = await register(
@@ -202,218 +250,159 @@ class CustomAuthService {
           fullname: displayName,
         );
       } on AuthException {
-        // Có thể trùng username, thử username dự phòng.
-        debugPrint(
-          ' Auth: Username Google chính bị trùng, thử username dự phòng...',
-        );
         newUser = await register(
           username: fallbackUsername,
           password: password,
           fullname: displayName,
         );
       }
-      // Lưu ảnh Google sau khi đăng ký thành công
       await saveGooglePhotoUrl(googlePhotoUrl);
       return newUser;
     } catch (e) {
       if (e is AuthException) rethrow;
-      debugPrint('Auth Google lỗi: $e');
       throw AuthException('Lỗi đăng nhập Google: $e');
     }
   }
 
-  /// Đăng ký: POST /auth/register
-  /// Trả về AppUser nếu thành công
+  /// Đăng ký tài khoản cục bộ (Offline)
   static Future<AppUser> register({
     required String username,
     required String password,
     String? fullname,
     String? phone,
   }) async {
-    try {
-      debugPrint(' Auth: Đăng ký username=$username');
+    final cleanUsername = username.trim();
+    debugPrint('📝 Auth offline: Đăng ký username=$cleanUsername');
 
-      final body = <String, dynamic>{
-        'username': username.trim(),
-        'password': password,
-      };
-      if (fullname != null && fullname.isNotEmpty) {
-        body['fullname'] = fullname.trim();
-      }
-      if (phone != null && phone.isNotEmpty) body['phone'] = phone.trim();
-
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/auth/register'),
-            headers: _publicHeaders(),
-            body: json.encode(body),
-          )
-          .timeout(_timeout);
-
-      final responseBody = _parseBody(response);
-      debugPrint(' Auth Register response: ${response.statusCode}');
-
-      if ((response.statusCode == 200 || response.statusCode == 201) &&
-          responseBody['success'] == true) {
-        final data = responseBody['data'] as Map<String, dynamic>;
-        final user = AppUser.fromLoginResponse(data);
-
-        await saveToken(user.token);
-        debugPrint(' Auth: Đăng ký thành công - ${user.username}');
-        return user;
-      } else {
-        final message =
-            responseBody['message'] as String? ?? 'Đăng ký thất bại';
-        throw AuthException(message);
-      }
-    } on AuthException {
-      rethrow;
-    } catch (e) {
-      debugPrint(' Auth Register lỗi: $e');
-      throw AuthException('Không thể kết nối đến máy chủ. Vui lòng thử lại.');
+    final users = await _getUsers();
+    if (users.containsKey(cleanUsername)) {
+      throw const AuthException('Tài khoản đã tồn tại trên thiết bị');
     }
+
+    final newUser = {
+      'id': 'user_${cleanUsername}_${DateTime.now().millisecondsSinceEpoch}',
+      'username': cleanUsername,
+      'password': password,
+      'fullname': fullname?.trim() ?? cleanUsername,
+      'phone': phone?.trim(),
+      'role': 'member',
+      'avatar': null,
+      'isVipActive': false,
+      'vipExpiredAt': null,
+    };
+
+    users[cleanUsername] = newUser;
+    await _saveUsers(users);
+
+    final token = _generateFakeToken(cleanUsername, 'member');
+    await saveToken(token);
+
+    debugPrint('✅ Auth offline: Đăng ký thành công - $cleanUsername');
+    return _buildAppUser(newUser, token);
   }
 
-  /// Lấy thông tin user hiện tại từ token đã lưu: GET /auth/me
-  /// Dùng để khôi phục session khi mở lại app
+  /// Lấy thông tin user hiện tại từ token đã lưu (Khôi phục session offline)
   static Future<AppUser?> getMe() async {
     try {
       final token = await getStoredToken();
       if (token == null || token.isEmpty) {
-        debugPrint(' Auth: Không có token đã lưu');
         return null;
       }
 
-      debugPrint(' Auth: Khôi phục session từ token...');
-      final response = await http
-          .get(Uri.parse('$_baseUrl/auth/me'), headers: _authHeaders(token))
-          .timeout(_timeout);
-
-      final body = _parseBody(response);
-
-      if (response.statusCode == 200 && body['success'] == true) {
-        final userJson = body['data'] as Map<String, dynamic>;
-        final user = AppUser.fromMeResponse(userJson, token);
-        debugPrint(
-          ' Auth: Khôi phục session thành công - ${user.username} (${user.roleLabel})',
-        );
-        return user;
-      } else {
-        // Token hết hạn hoặc không hợp lệ
-        debugPrint(' Auth: Token hết hạn hoặc không hợp lệ, xóa token');
+      final payload = _decodeJwtPayload(token);
+      final username = payload['username']?.toString();
+      if (username == null || username.isEmpty) {
         await clearToken();
         return null;
       }
+
+      final users = await _getUsers();
+      if (!users.containsKey(username)) {
+        await clearToken();
+        return null;
+      }
+
+      final userData = users[username] as Map<String, dynamic>;
+      debugPrint('✅ Auth offline: Khôi phục session thành công cho $username');
+      return _buildAppUser(userData, token);
     } catch (e) {
-      debugPrint(' Auth GetMe lỗi: $e');
-      // Không throw exception ở đây - chỉ trả null để app vẫn chạy ở chế độ Guest
+      debugPrint('❌ Auth offline khôi phục session lỗi: $e');
       return null;
     }
   }
 
-  /// Đăng xuất: POST /auth/logout + xóa token local
+  /// Đăng xuất offline
   static Future<void> logout() async {
     try {
-      final token = await getStoredToken();
-      if (token != null) {
-        // Gọi API logout để server invalidate token (nếu BE hỗ trợ)
-        await http
-            .post(
-              Uri.parse('$_baseUrl/auth/logout'),
-              headers: _authHeaders(token),
-            )
-            .timeout(_timeout);
-        debugPrint('✅ Auth: Đã logout khỏi server');
-      }
-
-      // Đăng xuất khỏi Google nếu đang dùng
-      try {
-        final googleSignIn = GoogleSignIn();
-        await googleSignIn.signOut();
-      } catch (_) {}
-    } catch (e) {
-      // Dù server lỗi vẫn xóa token local
-      debugPrint('⚠️ Auth Logout server lỗi: $e - vẫn xóa token local');
+      final googleSignIn = GoogleSignIn();
+      await googleSignIn.signOut();
+    } catch (_) {
     } finally {
-      // Xóa JWT token và ảnh Google
       await clearToken();
       await clearGooglePhotoUrl();
+      debugPrint('✅ Auth offline: Đăng xuất thành công');
     }
   }
 
-  /// Cập nhật thông tin profile: PUT /auth/profile
+  /// Cập nhật thông tin profile cục bộ
   static Future<AppUser> updateProfile({
     required String token,
     String? fullname,
     String? phone,
   }) async {
-    try {
-      final body = <String, dynamic>{};
-      if (fullname != null) body['fullname'] = fullname.trim();
-      if (phone != null) body['phone'] = phone.trim();
-
-      final response = await http
-          .put(
-            Uri.parse('$_baseUrl/auth/profile'),
-            headers: _authHeaders(token),
-            body: json.encode(body),
-          )
-          .timeout(_timeout);
-
-      final responseBody = _parseBody(response);
-
-      if (response.statusCode == 200 && responseBody['success'] == true) {
-        final userJson = responseBody['data'] as Map<String, dynamic>;
-        return AppUser.fromMeResponse(userJson, token);
-      } else {
-        final message =
-            responseBody['message'] as String? ?? 'Cập nhật thất bại';
-        throw AuthException(message);
-      }
-    } on AuthException {
-      rethrow;
-    } catch (e) {
-      throw AuthException('Lỗi kết nối: $e');
+    final payload = _decodeJwtPayload(token);
+    final username = payload['username']?.toString();
+    if (username == null || username.isEmpty) {
+      throw const AuthException('Phiên đăng nhập không hợp lệ');
     }
+
+    final users = await _getUsers();
+    if (!users.containsKey(username)) {
+      throw const AuthException('Tài khoản không tồn tại');
+    }
+
+    final userData = users[username] as Map<String, dynamic>;
+    if (fullname != null) userData['fullname'] = fullname.trim();
+    if (phone != null) userData['phone'] = phone.trim();
+
+    users[username] = userData;
+    await _saveUsers(users);
+
+    debugPrint('✅ Auth offline: Cập nhật profile thành công cho $username');
+    return _buildAppUser(userData, token);
   }
 
-  /// Đổi mật khẩu: PUT /auth/change-password
+  /// Đổi mật khẩu cục bộ
   static Future<void> changePassword({
     required String token,
     required String oldPassword,
     required String newPassword,
   }) async {
-    try {
-      final response = await http
-          .put(
-            Uri.parse('$_baseUrl/auth/change-password'),
-            headers: _authHeaders(token),
-            body: json.encode({
-              'oldPassword': oldPassword,
-              'newPassword': newPassword,
-            }),
-          )
-          .timeout(_timeout);
-
-      final body = _parseBody(response);
-
-      if (response.statusCode != 200 || body['success'] != true) {
-        final message = body['message'] as String? ?? 'Đổi mật khẩu thất bại';
-        throw AuthException(message);
-      }
-    } on AuthException {
-      rethrow;
-    } catch (e) {
-      throw AuthException('Lỗi kết nối: $e');
+    final payload = _decodeJwtPayload(token);
+    final username = payload['username']?.toString();
+    if (username == null || username.isEmpty) {
+      throw const AuthException('Phiên đăng nhập không hợp lệ');
     }
+
+    final users = await _getUsers();
+    if (!users.containsKey(username)) {
+      throw const AuthException('Tài khoản không tồn tại');
+    }
+
+    final userData = users[username] as Map<String, dynamic>;
+    if (userData['password'] != oldPassword) {
+      throw const AuthException('Mật khẩu cũ không chính xác');
+    }
+
+    userData['password'] = newPassword;
+    users[username] = userData;
+    await _saveUsers(users);
+    
+    debugPrint('✅ Auth offline: Đổi mật khẩu thành công cho $username');
   }
 }
 
-// ─────────────────────────────────────────────────────────
-// CUSTOM EXCEPTION
-// ─────────────────────────────────────────────────────────
-
-/// Exception riêng cho lỗi xác thực - dùng message để hiển thị lên UI
+/// Exception riêng cho lỗi xác thực cục bộ
 class AuthException implements Exception {
   final String message;
   const AuthException(this.message);

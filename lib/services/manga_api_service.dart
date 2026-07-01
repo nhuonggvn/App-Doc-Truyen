@@ -1,392 +1,497 @@
 // lib/services/manga_api_service.dart
-// Service gọi API truyện tranh online từ server
+// Dịch vụ gọi API truyện tranh online từ server OTruyen và lưu trữ dữ liệu cục bộ
 
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/online_manga.dart';
-import 'custom_auth_service.dart';
 
-/// Service xử lý tất cả các HTTP request tới Manga API
+/// Dịch vụ xử lý tất cả các HTTP request tới Manga API của OTruyen
 class MangaApiService {
-  // URL gốc của API server
-  static const String baseUrl = 'http://192.168.3.237:8180/api/v1';
+  // Đường dẫn gốc của API OTruyen
+  static const String baseUrl = 'https://otruyenapi.com/v1/api';
 
   // Thời gian chờ tối đa cho mỗi request (giây)
   static const Duration _timeout = Duration(seconds: 15);
 
-  /// Header mặc định kèm Token nếu có
-  static Future<Map<String, String>> _getHeaders() async {
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
+  // Khóa lưu trữ danh sách yêu thích trong SharedPreferences
+  static const String _favoritesPrefKey = 'otruyen_favorites_local';
 
-    final token = await CustomAuthService.getStoredToken();
-    if (token != null) {
-      headers['Authorization'] = 'Bearer $token';
+  // Khóa lưu trữ lịch sử đọc trong SharedPreferences
+  static const String _progressPrefKey = 'otruyen_progress_local';
+
+  /// Ghép đường dẫn ảnh đầy đủ từ CDN của OTruyen
+  static String _getFullThumbUrl(String thumbUrl, String cdnDomain) {
+    if (thumbUrl.isEmpty) return '';
+    if (thumbUrl.startsWith('http')) return thumbUrl;
+    final cleanDomain = cdnDomain.replaceFirst(RegExp(r'^https?://'), '');
+    return 'https://$cleanDomain/uploads/comics/$thumbUrl';
+  }
+
+  /// Trích xuất thông tin tác giả từ dữ liệu trả về của API
+  static String _parseAuthor(dynamic authorData) {
+    if (authorData == null) return 'Đang cập nhật';
+    if (authorData is List && authorData.isNotEmpty) {
+      return authorData.first?.toString() ?? 'Đang cập nhật';
     }
+    if (authorData is String) {
+      return authorData;
+    }
+    return 'Đang cập nhật';
+  }
 
-    return headers;
+  /// Tính số lượng chương dựa trên chương mới nhất được cập nhật
+  static int _parseChaptersCount(dynamic chaptersLatest) {
+    if (chaptersLatest != null && chaptersLatest is List && chaptersLatest.isNotEmpty) {
+      final firstChap = chaptersLatest.first;
+      if (firstChap is Map) {
+        final chapName = firstChap['chapter_name']?.toString() ?? '0';
+        final match = RegExp(r'(\d+)').firstMatch(chapName);
+        if (match != null) {
+          return int.tryParse(match.group(1)!) ?? 0;
+        }
+        return int.tryParse(chapName) ?? 0;
+      }
+    }
+    return 0;
+  }
+
+  /// Chuyển đổi dữ liệu JSON từ API thành đối tượng OnlineManga
+  static OnlineManga _parseManga(Map<String, dynamic> item, String cdnDomain) {
+    final thumbUrl = item['thumb_url']?.toString() ?? '';
+    final fullThumbUrl = _getFullThumbUrl(thumbUrl, cdnDomain);
+    final authorName = _parseAuthor(item['author']);
+    final chaptersCount = _parseChaptersCount(item['chaptersLatest']);
+
+    return OnlineManga(
+      id: item['_id']?.toString() ?? '',
+      slug: item['slug']?.toString() ?? '',
+      title: item['name']?.toString() ?? 'Không có tiêu đề',
+      image: fullThumbUrl,
+      status: item['status']?.toString() ?? 'Đang cập nhật',
+      author: authorName,
+      description: item['content']?.toString() ?? '',
+      updatedAt: item['updatedAt'] != null
+          ? DateTime.tryParse(item['updatedAt'].toString())
+          : null,
+      chapters: chaptersCount,
+    );
+  }
+
+  /// Phân tích thông tin phân trang từ API OTruyen
+  static Map<String, dynamic> _parsePagination(Map<String, dynamic> data) {
+    final params = data['params'] ?? {};
+    final paginationData = params['pagination'] ?? {};
+    
+    final int totalItems = int.tryParse(paginationData['totalItems']?.toString() ?? '0') ?? 0;
+    final int totalItemsPerPage = int.tryParse(paginationData['totalItemsPerPage']?.toString() ?? '24') ?? 24;
+    final int currentPage = int.tryParse(paginationData['currentPage']?.toString() ?? '1') ?? 1;
+    
+    return {
+      'totalItems': totalItems,
+      'itemsPerPage': totalItemsPerPage,
+      'currentPage': currentPage,
+    };
   }
 
   /// Lấy danh sách truyện (Trang chủ Online)
   /// [type] - Loại danh sách: truyen-moi, sap-ra-mat, dang-phat-hanh, hoan-thanh
   /// [page] - Số trang (bắt đầu từ 1)
-  /// [pageSize] - Số lượng truyện mỗi trang (tuỳ chọn)
-  /// Trả về Map chứa danh sách manga và thông tin phân trang
+  /// [pageSize] - Số lượng truyện mỗi trang (để giữ đúng chữ ký hàm)
   static Future<Map<String, dynamic>> getMangas({
     String type = 'truyen-moi',
     int page = 1,
     int? pageSize,
   }) async {
     try {
-      // Xây dựng URL với query parameters
-      final queryParams = <String, String>{
-        'type': type,
-        'page': page.toString(),
-      };
-      if (pageSize != null) {
-        queryParams['pageSize'] = pageSize.toString();
+      final uri = Uri.parse('$baseUrl/danh-sach/$type?page=$page');
+      debugPrint('🌐 Đang gọi API OTruyen: $uri');
+
+      final response = await http.get(uri).timeout(_timeout);
+      if (response.statusCode != 200) {
+        return {'manga': <OnlineManga>[], 'pagination': <String, dynamic>{}};
       }
 
-      final uri = Uri.parse(
-        '$baseUrl/manga',
-      ).replace(queryParameters: queryParams);
-      debugPrint('🌐 Đang gọi API: $uri');
-
-      final headers = await _getHeaders();
-      final response = await http.get(uri, headers: headers).timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
-
-        if (jsonData['success'] == true && jsonData['data'] != null) {
-          final data = jsonData['data'];
-
-          // Parse danh sách manga
-          final mangaList =
-              (data['manga'] as List?)
-                  ?.map(
-                    (item) =>
-                        OnlineManga.fromJson(item as Map<String, dynamic>),
-                  )
-                  .toList() ??
-              [];
-
-          // Parse thông tin phân trang
-          final pagination = data['pagination'] as Map<String, dynamic>? ?? {};
-
-          debugPrint('✅ Đã tải ${mangaList.length} truyện (trang $page)');
-
-          return {'manga': mangaList, 'pagination': pagination};
-        }
+      final jsonData = json.decode(response.body);
+      if (jsonData['status'] != 'success' || jsonData['data'] == null) {
+        return {'manga': <OnlineManga>[], 'pagination': <String, dynamic>{}};
       }
 
-      debugPrint('❌ API trả về lỗi: ${response.statusCode}');
-      return {'manga': <OnlineManga>[], 'pagination': {}};
+      final data = jsonData['data'];
+      final cdnDomain = data['APP_DOMAIN_CDN_IMAGE']?.toString() ?? 'img.otruyenapi.com';
+      final items = data['items'] as List? ?? [];
+      
+      final mangaList = items.map((item) => _parseManga(item as Map<String, dynamic>, cdnDomain)).toList();
+      final pagination = _parsePagination(data);
+
+      debugPrint('✅ Đã tải ${mangaList.length} truyện (trang $page)');
+      return {'manga': mangaList, 'pagination': pagination};
     } catch (e) {
       debugPrint('❌ Lỗi khi gọi API danh sách truyện: $e');
-      rethrow;
+      return {'manga': <OnlineManga>[], 'pagination': <String, dynamic>{}};
     }
+  }
+
+  /// Phân tích danh sách thể loại từ dữ liệu thô
+  static List<OnlineCategory> _parseCategoriesList(dynamic categoryData) {
+    if (categoryData == null || categoryData is! List) return [];
+    return categoryData.map((cat) {
+      return OnlineCategory(
+        id: cat['_id']?.toString() ?? '',
+        slug: cat['slug']?.toString() ?? '',
+        name: cat['name']?.toString() ?? '',
+      );
+    }).toList();
+  }
+
+  /// Trích xuất số từ văn bản
+  static double _extractNum(String text) {
+    final match = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(text);
+    return match != null ? (double.tryParse(match.group(1)!) ?? 0.0) : 0.0;
+  }
+
+  /// Sắp xếp danh sách chương theo thứ tự tăng dần của chương
+  static void _sortChapters(List<OnlineChapter> chapters) {
+    chapters.sort((a, b) {
+      final aNum = _extractNum(a.name);
+      final bNum = _extractNum(b.name);
+      return aNum.compareTo(bNum);
+    });
+  }
+
+  /// Gộp các chương của một server vào danh sách chung, loại bỏ trùng lặp
+  static void _mergeServerChapters(
+    List<dynamic> serverData,
+    List<OnlineChapter> allChapters,
+    Set<String> addedChapterNames,
+  ) {
+    for (final ch in serverData) {
+      if (ch is Map) {
+        final chName = ch['chapter_name']?.toString() ?? '';
+        if (chName.isNotEmpty && !addedChapterNames.contains(chName)) {
+          addedChapterNames.add(chName);
+          final chTitle = ch['chapter_title']?.toString() ?? '';
+          final displayName = chTitle.isNotEmpty ? 'Chương $chName: $chTitle' : 'Chương $chName';
+          
+          allChapters.add(OnlineChapter(
+            apiId: ch['chapter_api_data']?.toString() ?? '',
+            name: displayName,
+          ));
+        }
+      }
+    }
+  }
+
+  /// Phân tích danh sách chương truyện từ dữ liệu thô (gộp tất cả các server)
+  static List<OnlineChapter> _parseChaptersList(dynamic chaptersData) {
+    if (chaptersData == null || chaptersData is! List || chaptersData.isEmpty) return [];
+    
+    final List<OnlineChapter> allChapters = [];
+    final Set<String> addedChapterNames = {};
+
+    for (final server in chaptersData) {
+      if (server is Map && server['server_data'] is List) {
+        _mergeServerChapters(server['server_data'] as List, allChapters, addedChapterNames);
+      }
+    }
+
+    _sortChapters(allChapters);
+    return allChapters;
+  }
+
+  /// Xây dựng đối tượng chi tiết truyện tranh OnlineDetail
+  static OnlineMangaDetail _buildMangaDetail(Map<String, dynamic> item, String cdnDomain) {
+    final thumbUrl = item['thumb_url']?.toString() ?? '';
+    final fullThumbUrl = _getFullThumbUrl(thumbUrl, cdnDomain);
+    final authorName = _parseAuthor(item['author']);
+    final categoriesList = _parseCategoriesList(item['category']);
+    final chaptersList = _parseChaptersList(item['chapters']);
+
+    return OnlineMangaDetail(
+      id: item['_id']?.toString() ?? '',
+      title: item['name']?.toString() ?? 'Không có tiêu đề',
+      description: item['content']?.toString() ?? 'Không có mô tả',
+      author: authorName,
+      image: fullThumbUrl,
+      status: item['status']?.toString() ?? 'Đang cập nhật',
+      categories: categoriesList,
+      chapters: chaptersList,
+    );
   }
 
   /// Lấy chi tiết thông tin truyện theo slug
-  /// [slug] - Slug của truyện (vd: "dao-hai-tac")
-  /// Trả về OnlineMangaDetail hoặc null nếu không tìm thấy
   static Future<OnlineMangaDetail?> getMangaDetail(String slug) async {
     try {
-      final uri = Uri.parse('$baseUrl/manga/$slug');
-      debugPrint('🌐 Đang gọi API chi tiết: $uri');
+      final uri = Uri.parse('$baseUrl/truyen-tranh/$slug');
+      debugPrint('🌐 Đang gọi API chi tiết OTruyen: $uri');
 
-      final headers = await _getHeaders();
-      final response = await http.get(uri, headers: headers).timeout(_timeout);
+      final response = await http.get(uri).timeout(_timeout);
+      if (response.statusCode != 200) return null;
 
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
+      final jsonData = json.decode(response.body);
+      if (jsonData['status'] != 'success' || jsonData['data'] == null) return null;
 
-        if (jsonData['success'] == true && jsonData['data'] != null) {
-          final detail = OnlineMangaDetail.fromJson(
-            jsonData['data'] as Map<String, dynamic>,
-          );
-          debugPrint('✅ Đã tải chi tiết truyện: ${detail.title}');
-          return detail;
-        }
-      }
+      final data = jsonData['data'];
+      final item = data['item'] ?? {};
+      final cdnDomain = data['APP_DOMAIN_CDN_IMAGE']?.toString() ?? 'img.otruyenapi.com';
 
-      debugPrint('❌ Không tìm thấy truyện với slug: $slug');
-      return null;
+      return _buildMangaDetail(item, cdnDomain);
     } catch (e) {
       debugPrint('❌ Lỗi khi gọi API chi tiết truyện: $e');
-      rethrow;
+      return null;
     }
   }
 
+  /// Tạo cấu trúc danh sách ảnh của chapter từ dữ liệu thô
+  static Map<String, dynamic> _buildChapterImagesData(Map<String, dynamic> item, String cdnDomain) {
+    final chapterPath = item['chapter_path']?.toString() ?? '';
+    var cleanDomain = cdnDomain.trim();
+    if (!cleanDomain.startsWith('http://') && !cleanDomain.startsWith('https://')) {
+      cleanDomain = 'https://$cleanDomain';
+    }
+
+    final chapterImages = item['chapter_image'] as List? ?? [];
+    final images = chapterImages.map((img) {
+      final file = img['image_file']?.toString() ?? '';
+      return '$cleanDomain/$chapterPath/$file';
+    }).toList();
+
+    final chName = item['chapter_name']?.toString() ?? '';
+    final chTitle = item['chapter_title']?.toString() ?? '';
+    final displayName = chTitle.isNotEmpty ? 'Chương $chName: $chTitle' : 'Chương $chName';
+
+    return {
+      'chapter_name': displayName,
+      'comic_name': item['comic_name']?.toString() ?? '',
+      'images': images,
+    };
+  }
+
   /// Lấy nội dung ảnh của một chapter
-  /// [chapterId] - ID chapter (vd: "chapter-100")
-  /// Trả về Map chứa tên chapter, tên truyện, và danh sách URL ảnh
-  static Future<Map<String, dynamic>?> getChapterImages(
-    String chapterId,
-  ) async {
+  /// [chapterId] - ID chapter (Ở đây chính là URL chapter_api_data đầy đủ)
+  static Future<Map<String, dynamic>?> getChapterImages(String chapterId) async {
     try {
-      final uri = Uri.parse('$baseUrl/manga/chapter/$chapterId');
-      debugPrint('🌐 Đang gọi API chapter: $uri');
+      final uri = Uri.parse(chapterId);
+      debugPrint('🌐 Đang gọi API chapter OTruyen: $uri');
 
-      final headers = await _getHeaders();
-      final response = await http.get(uri, headers: headers).timeout(_timeout);
+      final response = await http.get(uri).timeout(_timeout);
+      if (response.statusCode != 200) return null;
 
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
+      final jsonData = json.decode(response.body);
+      if (jsonData['status'] != 'success' || jsonData['data'] == null) return null;
 
-        if (jsonData['success'] == true && jsonData['data'] != null) {
-          final data = jsonData['data'] as Map<String, dynamic>;
+      final data = jsonData['data'] as Map<String, dynamic>;
+      final item = data['item'] as Map<String, dynamic>? ?? {};
+      final cdnDomain = data['domain_cdn']?.toString() ?? 'sv1.otruyencdn.com';
 
-          // Lấy danh sách ảnh từ response
-          final images =
-              (data['images'] as List?)
-                  ?.map((img) => img.toString())
-                  .toList() ??
-              [];
-
-          debugPrint('✅ Đã tải ${images.length} ảnh chapter');
-
-          return {
-            'chapter_name': data['chapter_name']?.toString() ?? '',
-            'comic_name': data['comic_name']?.toString() ?? '',
-            'images': images,
-          };
-        }
-      }
-
-      debugPrint('❌ Không tải được chapter: $chapterId');
-      return null;
+      return _buildChapterImagesData(item, cdnDomain);
     } catch (e) {
       debugPrint('❌ Lỗi khi gọi API chapter: $e');
-      rethrow;
+      return null;
     }
   }
 
   /// Tìm kiếm truyện tranh theo từ khoá
-  /// [query] - Từ khoá tìm kiếm
-  /// Trả về danh sách truyện tìm thấy
   static Future<List<OnlineManga>> searchManga(String query) async {
     try {
-      final uri = Uri.parse(
-        '$baseUrl/manga/search',
-      ).replace(queryParameters: {'query': query});
-      debugPrint('🌐 Đang tìm kiếm: $uri');
+      final encodedKeyword = Uri.encodeComponent(query);
+      final uri = Uri.parse('$baseUrl/tim-kiem?keyword=$encodedKeyword&page=1');
+      debugPrint('🌐 Đang tìm kiếm OTruyen: $uri');
 
-      final headers = await _getHeaders();
-      final response = await http.get(uri, headers: headers).timeout(_timeout);
+      final response = await http.get(uri).timeout(_timeout);
+      if (response.statusCode != 200) return [];
 
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
+      final jsonData = json.decode(response.body);
+      if (jsonData['status'] != 'success' || jsonData['data'] == null) return [];
 
-        if (jsonData['success'] == true && jsonData['data'] != null) {
-          final results = (jsonData['data'] as List)
-              .map((item) => OnlineManga.fromJson(item as Map<String, dynamic>))
-              .toList();
+      final data = jsonData['data'];
+      final cdnDomain = data['APP_DOMAIN_CDN_IMAGE']?.toString() ?? 'img.otruyenapi.com';
+      final items = data['items'] as List? ?? [];
 
-          debugPrint('✅ Tìm thấy ${results.length} kết quả cho "$query"');
-          return results;
-        }
-      }
-
-      return [];
+      return items.map((item) => _parseManga(item as Map<String, dynamic>, cdnDomain)).toList();
     } catch (e) {
       debugPrint('❌ Lỗi khi tìm kiếm truyện: $e');
-      rethrow;
+      return [];
     }
   }
 
   /// Lấy danh sách tất cả thể loại truyện
-  /// Trả về danh sách OnlineCategory
   static Future<List<OnlineCategory>> getCategories() async {
     try {
-      final uri = Uri.parse('$baseUrl/manga/categories');
-      debugPrint('🌐 Đang gọi API thể loại: $uri');
+      final uri = Uri.parse('$baseUrl/the-loai');
+      debugPrint('🌐 Đang gọi API thể loại OTruyen: $uri');
 
-      final headers = await _getHeaders();
-      final response = await http.get(uri, headers: headers).timeout(_timeout);
+      final response = await http.get(uri).timeout(_timeout);
+      if (response.statusCode != 200) return [];
 
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
+      final jsonData = json.decode(response.body);
+      if (jsonData['status'] != 'success' || jsonData['data'] == null) return [];
 
-        if (jsonData['success'] == true && jsonData['data'] != null) {
-          final categories = (jsonData['data'] as List)
-              .map(
-                (item) => OnlineCategory.fromJson(item as Map<String, dynamic>),
-              )
-              .toList();
-
-          debugPrint('✅ Đã tải ${categories.length} thể loại');
-          return categories;
-        }
-      }
-
-      return [];
+      final items = jsonData['data']['items'] as List? ?? [];
+      return items.map((item) {
+        return OnlineCategory(
+          id: item['_id']?.toString() ?? '',
+          slug: item['slug']?.toString() ?? '',
+          name: item['name']?.toString() ?? '',
+        );
+      }).toList();
     } catch (e) {
       debugPrint('❌ Lỗi khi gọi API thể loại: $e');
-      rethrow;
+      return [];
     }
   }
 
   /// Lấy danh sách truyện theo thể loại
-  /// [categorySlug] - Slug của thể loại (vd: "action")
-  /// [page] - Số trang
-  /// Trả về Map chứa danh sách manga và thông tin phân trang
   static Future<Map<String, dynamic>> getMangaByCategory(
     String categorySlug, {
     int page = 1,
     int? pageSize,
   }) async {
     try {
-      final queryParams = <String, String>{'page': page.toString()};
-      if (pageSize != null) {
-        queryParams['pageSize'] = pageSize.toString();
+      final uri = Uri.parse('$baseUrl/the-loai/$categorySlug?page=$page');
+      debugPrint('🌐 Đang gọi API truyện theo thể loại OTruyen: $uri');
+
+      final response = await http.get(uri).timeout(_timeout);
+      if (response.statusCode != 200) {
+        return {'manga': <OnlineManga>[], 'pagination': <String, dynamic>{}};
       }
 
-      final uri = Uri.parse(
-        '$baseUrl/manga/category/$categorySlug',
-      ).replace(queryParameters: queryParams);
-      debugPrint('🌐 Đang gọi API thể loại $categorySlug: $uri');
-
-      final headers = await _getHeaders();
-      final response = await http.get(uri, headers: headers).timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
-
-        if (jsonData['success'] == true && jsonData['data'] != null) {
-          final data = jsonData['data'];
-
-          final mangaList =
-              (data['manga'] as List?)
-                  ?.map(
-                    (item) =>
-                        OnlineManga.fromJson(item as Map<String, dynamic>),
-                  )
-                  .toList() ??
-              [];
-
-          final pagination = data['pagination'] as Map<String, dynamic>? ?? {};
-
-          debugPrint(
-            '✅ Đã tải ${mangaList.length} truyện thể loại $categorySlug',
-          );
-
-          return {'manga': mangaList, 'pagination': pagination};
-        }
+      final jsonData = json.decode(response.body);
+      if (jsonData['status'] != 'success' || jsonData['data'] == null) {
+        return {'manga': <OnlineManga>[], 'pagination': <String, dynamic>{}};
       }
 
-      return {'manga': <OnlineManga>[], 'pagination': {}};
+      final data = jsonData['data'];
+      final cdnDomain = data['APP_DOMAIN_CDN_IMAGE']?.toString() ?? 'img.otruyenapi.com';
+      final items = data['items'] as List? ?? [];
+
+      final mangaList = items.map((item) => _parseManga(item as Map<String, dynamic>, cdnDomain)).toList();
+      final pagination = _parsePagination(data);
+
+      return {'manga': mangaList, 'pagination': pagination};
     } catch (e) {
       debugPrint('❌ Lỗi khi gọi API truyện theo thể loại: $e');
-      rethrow;
+      return {'manga': <OnlineManga>[], 'pagination': <String, dynamic>{}};
     }
   }
 
-  // ==================== FAVORITES API ====================
+  // ==================== LOCAL FAVORITES (OFFLINE) ====================
 
-  /// Lấy danh sách truyện yêu thích từ Server
+  /// Lấy danh sách truyện yêu thích từ bộ nhớ cục bộ
   static Future<List<OnlineManga>> getFavorites({int page = 1}) async {
     try {
-      final uri = Uri.parse(
-        '$baseUrl/favorites',
-      ).replace(queryParameters: {'page': page.toString()});
-      final headers = await _getHeaders();
-      final response = await http.get(uri, headers: headers).timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
-        if (jsonData['success'] == true && jsonData['data'] != null) {
-          final items = jsonData['data']['items'] as List?;
-          return items
-                  ?.map((item) => OnlineManga.fromJson(item['manga']))
-                  .toList() ??
-              [];
-        }
+      final prefs = await SharedPreferences.getInstance();
+      final favoritesJson = prefs.getString(_favoritesPrefKey);
+      if (favoritesJson == null) {
+        return [];
       }
-      return [];
+
+      final List<dynamic> decodedList = json.decode(favoritesJson);
+      return decodedList.map((item) => OnlineManga.fromJson(item as Map<String, dynamic>)).toList();
     } catch (e) {
-      debugPrint('❌ Manga API Lỗi tải danh sách yêu thích: $e');
+      debugPrint('❌ Lỗi đọc danh sách yêu thích cục bộ: $e');
       return [];
     }
   }
 
-  /// Thêm truyện yêu thích lên Server
+  /// Thêm truyện yêu thích vào bộ nhớ cục bộ
   static Future<bool> addFavorite({
     required String mangaSlug,
     String? mangaTitle,
     String? mangaImage,
   }) async {
     try {
-      final headers = await _getHeaders();
-      if (!headers.containsKey('Authorization')) return false;
+      final prefs = await SharedPreferences.getInstance();
+      final favorites = await getFavorites();
+      
+      if (favorites.any((e) => e.slug == mangaSlug)) {
+        return true;
+      }
 
-      final body = json.encode({
-        'mangaSlug': mangaSlug,
-        'mangaTitle': mangaTitle ?? '',
-        'mangaImage': mangaImage ?? '',
-      });
+      final newFav = OnlineManga(
+        id: mangaSlug,
+        slug: mangaSlug,
+        title: mangaTitle ?? 'Không có tiêu đề',
+        image: mangaImage,
+        status: 'Đang cập nhật',
+        author: 'Đang cập nhật',
+        description: '',
+        updatedAt: DateTime.now(),
+        chapters: 0,
+      );
 
-      final response = await http
-          .post(Uri.parse('$baseUrl/favorites'), headers: headers, body: body)
-          .timeout(_timeout);
+      favorites.insert(0, newFav);
 
-      final jsonData = json.decode(response.body);
-      return response.statusCode == 201 ||
-          (response.statusCode == 200 && jsonData['success'] == true);
+      final encoded = json.encode(favorites.map((e) => {
+        'id': e.id,
+        'slug': e.slug,
+        'title': e.title,
+        'image': e.image,
+        'status': e.status,
+        'author': e.author,
+        'description': e.description,
+        'updatedAt': e.updatedAt?.toIso8601String(),
+        'chapters': e.chapters,
+      }).toList());
+
+      await prefs.setString(_favoritesPrefKey, encoded);
+      return true;
     } catch (e) {
-      debugPrint('❌ Manga API Lỗi thêm yêu thích: $e');
+      debugPrint('❌ Lỗi thêm yêu thích cục bộ: $e');
       return false;
     }
   }
 
-  /// Xóa truyện yêu thích khỏi Server
+  /// Xóa truyện yêu thích khỏi bộ nhớ cục bộ
   static Future<bool> removeFavorite(String mangaSlug) async {
     try {
-      final headers = await _getHeaders();
-      if (!headers.containsKey('Authorization')) return false;
+      final prefs = await SharedPreferences.getInstance();
+      final favorites = await getFavorites();
+      
+      favorites.removeWhere((e) => e.slug == mangaSlug);
 
-      final uri = Uri.parse('$baseUrl/favorites/$mangaSlug');
-      final response = await http
-          .delete(uri, headers: headers)
-          .timeout(_timeout);
+      final encoded = json.encode(favorites.map((e) => {
+        'id': e.id,
+        'slug': e.slug,
+        'title': e.title,
+        'image': e.image,
+        'status': e.status,
+        'author': e.author,
+        'description': e.description,
+        'updatedAt': e.updatedAt?.toIso8601String(),
+        'chapters': e.chapters,
+      }).toList());
 
-      final jsonData = json.decode(response.body);
-      return response.statusCode == 200 && jsonData['success'] == true;
+      await prefs.setString(_favoritesPrefKey, encoded);
+      return true;
     } catch (e) {
-      debugPrint('❌ Manga API Lỗi xóa yêu thích: $e');
+      debugPrint('❌ Lỗi xóa yêu thích cục bộ: $e');
       return false;
     }
   }
 
-  // ==================== READING PROGRESS API ====================
+  // ==================== LOCAL READING PROGRESS (OFFLINE) ====================
 
-  /// Lấy danh sách lịch sử đọc từ Server
+  /// Lấy danh sách lịch sử đọc từ bộ nhớ cục bộ
   static Future<List<Map<String, dynamic>>> getReadingProgress() async {
     try {
-      final headers = await _getHeaders();
-      final response = await http
-          .get(Uri.parse('$baseUrl/progress'), headers: headers)
-          .timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
-        if (jsonData['success'] == true && jsonData['data'] != null) {
-          return List<Map<String, dynamic>>.from(jsonData['data']);
-        }
+      final prefs = await SharedPreferences.getInstance();
+      final progressJson = prefs.getString(_progressPrefKey);
+      if (progressJson == null) {
+        return [];
       }
-      return [];
+
+      final List<dynamic> decodedList = json.decode(progressJson);
+      return List<Map<String, dynamic>>.from(decodedList);
     } catch (e) {
-      debugPrint('❌ Manga API Lỗi tải lịch sử đọc: $e');
+      debugPrint('❌ Lỗi đọc tiến độ đọc cục bộ: $e');
       return [];
     }
   }
 
-  /// Cập nhật tiến độ đọc lên Server
+  /// Cập nhật tiến độ đọc cục bộ
   static Future<bool> updateReadingProgress({
     required String mangaSlug,
     required String chapterApiId,
@@ -396,107 +501,69 @@ class MangaApiService {
     int pageIndex = 0,
   }) async {
     try {
-      final headers = await _getHeaders();
-      if (!headers.containsKey('Authorization')) {
-        return false; // Guest không lưu lịch sử Cloud
-      }
+      final prefs = await SharedPreferences.getInstance();
+      final progressList = await getReadingProgress();
 
-      final body = json.encode({
+      final index = progressList.indexWhere((e) => e['mangaSlug'] == mangaSlug);
+
+      final progressData = {
         'mangaSlug': mangaSlug,
         'chapterApiId': chapterApiId,
         'mangaTitle': mangaTitle ?? '',
         'mangaImage': mangaImage ?? '',
         'chapterName': chapterName ?? '',
         'pageIndex': pageIndex,
-      });
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
 
-      final response = await http
-          .put(Uri.parse('$baseUrl/progress'), headers: headers, body: body)
-          .timeout(_timeout);
+      if (index >= 0) {
+        progressList.removeAt(index);
+      }
+      progressList.insert(0, progressData);
 
-      return response.statusCode == 200;
+      await prefs.setString(_progressPrefKey, json.encode(progressList));
+      return true;
     } catch (e) {
-      debugPrint('❌ Manga API Cập nhật tiến độ lỗi: $e');
+      debugPrint('❌ Lỗi cập nhật tiến độ đọc cục bộ: $e');
       return false;
     }
   }
 
-  // ==================== PAYMENT & PLANS ====================
+  // ==================== PAYMENT & PLANS (OFFLINE mock) ====================
 
-  /// Lấy danh sách các gói cước đang bán
+  /// Lấy danh sách các gói cước đang bán (trả về danh sách giả lập)
   static Future<List<Map<String, dynamic>>> getPlans() async {
-    try {
-      final response = await http
-          .get(Uri.parse('$baseUrl/plans'))
-          .timeout(_timeout);
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
-        if (jsonData['success'] == true && jsonData['data'] != null) {
-          return List<Map<String, dynamic>>.from(jsonData['data']);
-        }
+    return [
+      {
+        'id': 'plan_free',
+        'name': 'Gói Miễn Phí',
+        'price': 0,
+        'description': 'Đọc tất cả các truyện miễn phí từ OTruyen',
+        'durationDays': 30,
+      },
+      {
+        'id': 'plan_vip_local',
+        'name': 'Gói VIP Vô Hạn',
+        'price': 0,
+        'description': 'Gói VIP giả lập offline dành cho lập trình viên',
+        'durationDays': 9999,
       }
-      return [];
-    } catch (e) {
-      debugPrint('❌ Manga API lỗi tải danh sách Plans: $e');
-      return [];
-    }
+    ];
   }
 
-  /// Gọi API tạo payment URL VNPay
+  /// Gọi API tạo payment URL (trả về null vì offline)
   static Future<String?> createPaymentUrl(String planId) async {
-    try {
-      final headers = await _getHeaders();
-      if (!headers.containsKey('Authorization')) return null;
-
-      final body = json.encode({'planId': planId});
-
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/payment/create-url'),
-            headers: headers,
-            body: body,
-          )
-          .timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
-        if (jsonData['success'] == true && jsonData['paymentUrl'] != null) {
-          return jsonData['paymentUrl'].toString();
-        }
-      }
-      return null;
-    } catch (e) {
-      debugPrint('❌ Manga API lỗi tạo payment URL: $e');
-      return null;
-    }
+    return null;
   }
-  // ============= EDITOR APIs (GIAI ĐOẠN 2) =============
 
-  /// Lấy danh sách truyện do chính Editor/Admin này quản lý
+  // ============= EDITOR APIs (GIAI ĐOẠN 2 - OFFLINE mock) =============
+
+  /// Lấy danh sách truyện do chính Editor/Admin này quản lý (offline)
   static Future<List<OnlineManga>> getEditorMangas() async {
-    try {
-      final uri = Uri.parse('$baseUrl/manga/manage');
-      final headers = await _getHeaders();
-      final response = await http.get(uri, headers: headers).timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
-        if (jsonData['success'] == true && jsonData['data'] != null) {
-          final items = jsonData['data'] as List?;
-          return items
-                  ?.map((item) => OnlineManga.fromJson(item))
-                  .toList() ??
-              [];
-        }
-      }
-      return [];
-    } catch (e) {
-      debugPrint('❌ Manga API lỗi tải danh sách quản lý: $e');
-      return [];
-    }
+    return [];
   }
 
-  /// Tạo truyện mới: POST /manga
+  /// Tạo truyện mới (offline)
   static Future<bool> createManga({
     required String title,
     String? author,
@@ -506,69 +573,18 @@ class MangaApiService {
     bool? isVip,
     String? genres,
   }) async {
-    try {
-      final uri = Uri.parse('$baseUrl/manga');
-      final request = http.MultipartRequest('POST', uri);
-      
-      // Thêm token vào header
-      final token = await CustomAuthService.getStoredToken();
-      if (token != null) {
-        request.headers['Authorization'] = 'Bearer $token';
-      }
-
-      // Thêm các trường text
-      request.fields['title'] = title;
-      request.fields['author'] = author ?? '';
-      request.fields['description'] = description ?? '';
-      request.fields['status'] = status;
-      request.fields['isVip'] = (isVip ?? false).toString();
-      request.fields['genres'] = genres ?? '';
-
-      // Thêm file ảnh bìa
-      request.files.add(await http.MultipartFile.fromPath('thumbnail', coverFile.path));
-
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 30));
-      final response = await http.Response.fromStream(streamedResponse);
-
-      return response.statusCode == 201 || response.statusCode == 200;
-    } catch (e) {
-      debugPrint('❌ Manga API lỗi tạo truyện: $e');
-      return false;
-    }
+    debugPrint('⚠️ Tạo truyện offline không được hỗ trợ');
+    return false;
   }
 
-  /// Tạo chương mới: POST /manga/chapter
+  /// Tạo chương mới (offline)
   static Future<bool> createChapter({
     required String mangaSlug,
     required String chapterNum,
     String? title,
     required List<File> imageFiles,
   }) async {
-    try {
-      final uri = Uri.parse('$baseUrl/manga/chapter');
-      final request = http.MultipartRequest('POST', uri);
-      
-      final token = await CustomAuthService.getStoredToken();
-      if (token != null) {
-        request.headers['Authorization'] = 'Bearer $token';
-      }
-
-      request.fields['mangaSlug'] = mangaSlug;
-      request.fields['chapterNum'] = chapterNum;
-      request.fields['title'] = title ?? '';
-
-      // Thêm danh sách ảnh nội dung
-      for (var i = 0; i < imageFiles.length; i++) {
-        request.files.add(await http.MultipartFile.fromPath('images', imageFiles[i].path));
-      }
-
-      final streamedResponse = await request.send().timeout(const Duration(minutes: 5));
-      final response = await http.Response.fromStream(streamedResponse);
-
-      return response.statusCode == 201 || response.statusCode == 200;
-    } catch (e) {
-      debugPrint('❌ Manga API lỗi tạo chương: $e');
-      return false;
-    }
+    debugPrint('⚠️ Tạo chương offline không được hỗ trợ');
+    return false;
   }
 }
