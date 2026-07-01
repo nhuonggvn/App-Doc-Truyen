@@ -10,6 +10,14 @@ import '../models/app_user.dart';
 
 /// Dịch vụ xử lý xác thực offline cục bộ lưu trữ qua SharedPreferences
 class CustomAuthService {
+  // Danh sách các username hoặc email được cấu hình quyền Admin cục bộ
+  static const List<String> adminList = [
+    'admin',
+    'yuukiasuma12@gmail.com'
+    // Bạn có thể thêm email Google hoặc username của bạn vào đây để làm Admin cục bộ
+    // Ví dụ: 'huongg.spro@gmail.com',
+  ];
+
   static const String _tokenKey = 'custom_auth_token';
   static const String _usersDbKey = 'otruyen_offline_users_db';
   static const String _googlePhotoKey = 'google_photo_url';
@@ -192,76 +200,132 @@ class CustomAuthService {
     await prefs.remove(_googlePhotoKey);
   }
 
-  /// Đăng nhập bằng Google (kết hợp offline)
+  /// Đăng nhập bằng Google (Google Auth thật)
   static Future<AppUser> loginWithGoogle() async {
     try {
-      GoogleSignInAccount? googleUser;
-      bool isGoogleError = false;
-      
-      try {
-        final googleSignIn = GoogleSignIn();
-        googleUser = await googleSignIn.signIn();
-        if (googleUser == null) {
-          throw const AuthException('Đã hủy đăng nhập Google.');
-        }
-      } on AuthException {
-        rethrow;
-      } catch (e) {
-        debugPrint('⚠️ Google Sign-In thực tế thất bại (do thiếu Google Play Services hoặc cấu hình Firebase): $e');
-        isGoogleError = true;
-      }
-
-      String email;
-      String displayName;
-      String? googlePhotoUrl;
-
-      if (googleUser != null) {
-        email = googleUser.email;
-        displayName = googleUser.displayName ?? 'Google User';
-        googlePhotoUrl = googleUser.photoUrl;
-      } else if (isGoogleError) {
-        // Chỉ giả lập tài khoản Google offline khi thực sự gặp lỗi hệ thống hoặc cấu hình
-        email = 'google_user@gmail.com';
-        displayName = 'Google User Offline';
-        googlePhotoUrl = null;
-      } else {
+      final googleSignIn = GoogleSignIn();
+      final googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
         throw const AuthException('Đã hủy đăng nhập Google.');
       }
-
-      final password = 'G_${email}_Spro_123!';
-      final primaryUsername = _buildGoogleUsername(email);
-      final fallbackUsername = _buildGoogleFallbackUsername(email);
-
-      // Thử đăng nhập trước
-      try {
-        final user = await login(username: primaryUsername, password: password);
-        await saveGooglePhotoUrl(googlePhotoUrl);
-        return user;
-      } on AuthException {
-        // Bỏ qua để thử đăng ký mới bên dưới
-      }
-
-      // Tạo tài khoản mới offline
-      AppUser newUser;
-      try {
-        newUser = await register(
-          username: primaryUsername,
-          password: password,
-          fullname: displayName,
-        );
-      } on AuthException {
-        newUser = await register(
-          username: fallbackUsername,
-          password: password,
-          fullname: displayName,
-        );
-      }
-      await saveGooglePhotoUrl(googlePhotoUrl);
-      return newUser;
+      return _handleGoogleUser(googleUser);
     } catch (e) {
       if (e is AuthException) rethrow;
       throw AuthException('Lỗi đăng nhập Google: $e');
     }
+  }
+
+  /// Xử lý logic đăng nhập/đăng ký tài khoản Google sau khi lấy thông tin thành công
+  static Future<AppUser> _handleGoogleUser(GoogleSignInAccount googleUser) async {
+    final email = googleUser.email;
+    final displayName = googleUser.displayName ?? 'Google User';
+    final googlePhotoUrl = googleUser.photoUrl;
+    
+    final password = 'G_${email}_Spro_123!';
+    final primaryUsername = _buildGoogleUsername(email);
+    final fallbackUsername = _buildGoogleFallbackUsername(email);
+
+    final role = _determineGoogleUserRole(email, primaryUsername, fallbackUsername);
+
+    try {
+      final user = await _loginOfflineForGoogle(username: primaryUsername, password: password, role: role);
+      await saveGooglePhotoUrl(googlePhotoUrl);
+      return user;
+    } on AuthException {
+      final user = await _registerGoogleOffline(primaryUsername, fallbackUsername, password, displayName, role);
+      await saveGooglePhotoUrl(googlePhotoUrl);
+      return user;
+    }
+  }
+
+  /// Xác định vai trò của tài khoản Google dựa trên adminList
+  static String _determineGoogleUserRole(String email, String primary, String fallback) {
+    if (adminList.contains(email) || adminList.contains(primary) || adminList.contains(fallback)) {
+      return 'admin';
+    }
+    return 'member';
+  }
+
+  /// Đăng ký tài khoản Google mới offline (có thử tên phụ nếu trùng)
+  static Future<AppUser> _registerGoogleOffline(
+    String primary,
+    String fallback,
+    String password,
+    String displayName,
+    String role,
+  ) async {
+    try {
+      return await _registerOfflineForGoogle(
+        username: primary,
+        password: password,
+        fullname: displayName,
+        role: role,
+      );
+    } on AuthException {
+      return await _registerOfflineForGoogle(
+        username: fallback,
+        password: password,
+        fullname: displayName,
+        role: role,
+      );
+    }
+  }
+
+  /// Đăng nhập offline chuyên dùng cho tài khoản Google (cập nhật role nếu đổi cấu hình)
+  static Future<AppUser> _loginOfflineForGoogle({
+    required String username,
+    required String password,
+    required String role,
+  }) async {
+    final users = await _getUsers();
+    if (!users.containsKey(username)) {
+      throw const AuthException('Tài khoản không tồn tại');
+    }
+
+    final userData = users[username] as Map<String, dynamic>;
+    if (userData['password'] != password) {
+      throw const AuthException('Sai mật khẩu');
+    }
+
+    userData['role'] = role;
+    users[username] = userData;
+    await _saveUsers(users);
+
+    final token = _generateFakeToken(username, role);
+    await saveToken(token);
+    return _buildAppUser(userData, token);
+  }
+
+  /// Đăng ký offline chuyên dùng cho tài khoản Google
+  static Future<AppUser> _registerOfflineForGoogle({
+    required String username,
+    required String password,
+    String? fullname,
+    required String role,
+  }) async {
+    final users = await _getUsers();
+    if (users.containsKey(username)) {
+      throw const AuthException('Tài khoản đã tồn tại');
+    }
+
+    final newUser = {
+      'id': 'user_${username}_${DateTime.now().millisecondsSinceEpoch}',
+      'username': username,
+      'password': password,
+      'fullname': fullname ?? username,
+      'phone': null,
+      'role': role,
+      'avatar': null,
+      'isVipActive': role == 'admin',
+      'vipExpiredAt': role == 'admin' ? DateTime.now().add(const Duration(days: 365)).toIso8601String() : null,
+    };
+
+    users[username] = newUser;
+    await _saveUsers(users);
+
+    final token = _generateFakeToken(username, role);
+    await saveToken(token);
+    return _buildAppUser(newUser, token);
   }
 
   /// Đăng ký tài khoản cục bộ (Offline)
@@ -279,22 +343,24 @@ class CustomAuthService {
       throw const AuthException('Tài khoản đã tồn tại trên thiết bị');
     }
 
+    final role = adminList.contains(cleanUsername) ? 'admin' : 'member';
+
     final newUser = {
       'id': 'user_${cleanUsername}_${DateTime.now().millisecondsSinceEpoch}',
       'username': cleanUsername,
       'password': password,
       'fullname': fullname?.trim() ?? cleanUsername,
       'phone': phone?.trim(),
-      'role': 'member',
+      'role': role,
       'avatar': null,
-      'isVipActive': false,
-      'vipExpiredAt': null,
+      'isVipActive': role == 'admin',
+      'vipExpiredAt': role == 'admin' ? DateTime.now().add(const Duration(days: 365)).toIso8601String() : null,
     };
 
     users[cleanUsername] = newUser;
     await _saveUsers(users);
 
-    final token = _generateFakeToken(cleanUsername, 'member');
+    final token = _generateFakeToken(cleanUsername, role);
     await saveToken(token);
 
     debugPrint('✅ Auth offline: Đăng ký thành công - $cleanUsername');
