@@ -58,6 +58,23 @@ class MangaApiService {
     return 0;
   }
 
+  /// Chuyển đổi trạng thái truyện online sang tiếng Việt
+  static String _parseStatus(String? apiStatus) {
+    if (apiStatus == null) return 'Đang cập nhật';
+    final normalized = apiStatus.trim().toLowerCase();
+    switch (normalized) {
+      case 'ongoing':
+        return 'Đang hoạt động';
+      case 'completed':
+        return 'Hoàn thành';
+      case 'paused':
+      case 'coming_soon':
+        return 'Sắp ra mắt';
+      default:
+        return apiStatus;
+    }
+  }
+
   /// Chuyển đổi dữ liệu JSON từ API thành đối tượng OnlineManga
   static OnlineManga _parseManga(Map<String, dynamic> item, String cdnDomain) {
     final thumbUrl = item['thumb_url']?.toString() ?? '';
@@ -70,7 +87,7 @@ class MangaApiService {
       slug: item['slug']?.toString() ?? '',
       title: item['name']?.toString() ?? 'Không có tiêu đề',
       image: fullThumbUrl,
-      status: item['status']?.toString() ?? 'Đang cập nhật',
+      status: _parseStatus(item['status']?.toString()),
       author: authorName,
       description: item['content']?.toString() ?? '',
       updatedAt: item['updatedAt'] != null
@@ -215,7 +232,7 @@ class MangaApiService {
       description: item['content']?.toString() ?? 'Không có mô tả',
       author: authorName,
       image: fullThumbUrl,
-      status: item['status']?.toString() ?? 'Đang cập nhật',
+      status: _parseStatus(item['status']?.toString()),
       categories: categoriesList,
       chapters: chaptersList,
     );
