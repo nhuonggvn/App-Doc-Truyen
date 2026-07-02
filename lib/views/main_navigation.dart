@@ -53,26 +53,59 @@ class _MainNavigationState extends State<MainNavigation> {
     }
 
     return Scaffold(
+      extendBody: true, // Quan trọng: Cho phép danh sách cuộn trượt xuống dưới nền của thanh Dock
       body: IndexedStack(
         index: _currentIndex,
         children: navItems.map((item) => item.screen).toList(),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        destinations: navItems
-            .map(
-              (item) => NavigationDestination(
-                icon: Icon(item.icon),
-                selectedIcon: Icon(item.selectedIcon),
-                label: item.label,
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          margin: const EdgeInsets.only(left: 14, right: 14, bottom: 8),
+          height: 56, // Chiều cao tối giản
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(32), // Bo tròn dạng viên thuốc (Pill shape)
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
               ),
-            )
-            .toList(),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(navItems.length, (index) {
+              final item = navItems[index];
+              final isSelected = _currentIndex == index;
+
+              return InkWell(
+                onTap: () {
+                  setState(() {
+                    _currentIndex = index;
+                  });
+                },
+                borderRadius: BorderRadius.circular(32),
+                child: Padding(
+                  padding: const EdgeInsets.all(10.0), //
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOutBack, // Hiệu ứng nảy nhẹ
+                    transform: Matrix4.identity()..scale(isSelected ? 1.15 : 1.0),
+                    transformAlignment: Alignment.center,
+                    child: Icon(
+                      isSelected ? item.selectedIcon : item.icon,
+                      size: 26,
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary // Bắt màu chủ đạo
+                          : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
       ),
     );
   }
@@ -115,7 +148,7 @@ class _MainNavigationState extends State<MainNavigation> {
         _NavItem(
           icon: Icons.edit_note_outlined,
           selectedIcon: Icons.edit_note,
-          label: 'Quản lý truyện',
+          label: 'Editor',
           screen: const MyStoriesScreen(),
         ),
         baseItems[2], // Lịch sử
@@ -137,7 +170,7 @@ class _MainNavigationState extends State<MainNavigation> {
         _NavItem(
           icon: Icons.edit_note_outlined,
           selectedIcon: Icons.edit_note,
-          label: 'Quản lý truyện',
+          label: 'Editor',
           screen: const MyStoriesScreen(),
         ),
         baseItems[3], // Hồ sơ
