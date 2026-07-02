@@ -123,10 +123,6 @@ class _OnlineScreenState extends State<OnlineScreen> {
                 ? _buildSearchResults(provider)
                 : _buildMangaGrid(provider),
           ),
-
-          // Thanh phân trang (chỉ hiện khi không tìm kiếm và có dữ liệu)
-          if (!_isSearchMode && !provider.isLoading && provider.mangaList.isNotEmpty)
-            _buildPaginationBar(provider),
         ],
       ),
     );
@@ -233,32 +229,43 @@ class _OnlineScreenState extends State<OnlineScreen> {
       );
     }
 
-    // Hiển thị lưới truyện với RefreshIndicator để kéo xuống làm mới
+    // Hiển thị lưới truyện với RefreshIndicator và CustomScrollView để đưa phân trang vào cuối danh sách cuộn
     return RefreshIndicator(
       onRefresh: () => provider.loadMangas(isRefresh: true),
-      child: GridView.builder(
+      child: CustomScrollView(
         controller: _scrollController,
         cacheExtent: 9999, // Load trước toàn bộ item của trang hiện tại để mượt hơn
-        padding: const EdgeInsets.all(12), // chỉnh padding lưới truyện
-        // Tắt auto keep alive để giải phóng bộ nhớ cho item ngoài màn hình
-        addAutomaticKeepAlives: false,
-        // Bật repaint boundaries để tối ưu vẽ lại từng item
-        addRepaintBoundaries: true,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, // chỉnh số cột lưới
-          childAspectRatio: 0.65, // chỉnh tỷ lệ card
-          crossAxisSpacing: 10, // chỉnh khoảng cách ngang giữa card
-          mainAxisSpacing: 10, // chỉnh khoảng cách dọc giữa card
-        ),
-        itemCount: provider.mangaList.length,
-        itemBuilder: (context, index) {
-          final manga = provider.mangaList[index];
-          return OnlineMangaCard(
-            key: ValueKey(manga.slug),
-            manga: manga,
-            onTap: () => _openMangaDetail(manga),
-          );
-        },
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.all(12),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2, // chỉnh số cột lưới
+                childAspectRatio: 0.65, // chỉnh tỷ lệ card
+                crossAxisSpacing: 10, // chỉnh khoảng cách ngang giữa card
+                mainAxisSpacing: 10, // chỉnh khoảng cách dọc giữa card
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final manga = provider.mangaList[index];
+                  return OnlineMangaCard(
+                    key: ValueKey(manga.slug),
+                    manga: manga,
+                    onTap: () => _openMangaDetail(manga),
+                  );
+                },
+                childCount: provider.mangaList.length,
+                addAutomaticKeepAlives: false,
+                addRepaintBoundaries: true,
+              ),
+            ),
+          ),
+          // Thanh phân trang cuộn theo danh sách ở cuối cùng
+          if (!_isSearchMode && !provider.isLoading && provider.mangaList.isNotEmpty)
+            SliverToBoxAdapter(
+              child: _buildPaginationBar(provider),
+            ),
+        ],
       ),
     );
   }
@@ -321,26 +328,18 @@ class _OnlineScreenState extends State<OnlineScreen> {
   /// Xây dựng thanh điều hướng phân trang (Pagination)
   Widget _buildPaginationBar(OnlineMangaProvider provider) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, -2),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      decoration: const BoxDecoration(
+        color: Colors.transparent,
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Nút Prev
-          FilledButton.tonalIcon(
+          // Nút Prev (Dạng icon gọn nhẹ)
+          IconButton.filledTonal(
             onPressed: provider.currentPage > 1
                 ? () {
                     provider.loadMangas(page: provider.currentPage - 1);
-                    // Cuộn lên đầu
                     _scrollController.animateTo(
                       0,
                       duration: const Duration(milliseconds: 300),
@@ -348,36 +347,36 @@ class _OnlineScreenState extends State<OnlineScreen> {
                     );
                   }
                 : null,
-            icon: const Icon(Icons.chevron_left, size: 20),
-            label: const Text('Trang trước'),
+            icon: const Icon(Icons.chevron_left, size: 24),
+            tooltip: 'Trang trước',
           ),
           
-          const Spacer(),
+          const SizedBox(width: 24),
           
-          // Số trang hiện tại
+          // Số trang hiện tại (Thiết kế dạng viên thuốc)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(24), // Bo tròn như viên thuốc
             ),
             child: Text(
               'Trang ${provider.currentPage}',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
+                fontSize: 15,
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
               ),
             ),
           ),
           
-          const Spacer(),
+          const SizedBox(width: 24),
           
-          // Nút Next
-          FilledButton.icon(
+          // Nút Next (Dạng icon gọn nhẹ)
+          IconButton.filled(
             onPressed: provider.hasMorePages
                 ? () {
                     provider.loadMangas(page: provider.currentPage + 1);
-                    // Cuộn lên đầu
                     _scrollController.animateTo(
                       0,
                       duration: const Duration(milliseconds: 300),
@@ -385,9 +384,8 @@ class _OnlineScreenState extends State<OnlineScreen> {
                     );
                   }
                 : null,
-            icon: const Icon(Icons.chevron_right, size: 20),
-            label: const Text('Trang sau'),
-            iconAlignment: IconAlignment.end,
+            icon: const Icon(Icons.chevron_right, size: 24),
+            tooltip: 'Trang sau',
           ),
         ],
       ),

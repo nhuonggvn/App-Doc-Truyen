@@ -68,9 +68,13 @@ class OnlineMangaProvider with ChangeNotifier {
   // Cache danh sách truyện (key: "type-page", value: danh sách truyện)
   final Map<String, List<OnlineManga>> _pageCache = {};
 
+  // Số truyện hiển thị trên mỗi trang (gộp từ 2 trang API)
+  static const int _displayPageSize = 42;
+
   // ==================== DANH SÁCH TRUYỆN ====================
 
-  /// Tải danh sách truyện từ API theo trang
+  /// Tải danh sách truyện từ API theo trang.
+  /// Gộp 2 trang API (mỗi trang 24 truyện) thành 1 trang hiển thị 42 truyện.
   Future<void> loadMangas({String? type, int? page, bool isRefresh = false}) async {
     // Cập nhật bộ lọc và reset trang nếu đổi loại
     if (type != null && _selectedType != type) {
@@ -88,10 +92,10 @@ class OnlineMangaProvider with ChangeNotifier {
     final cacheKey = '$_selectedType-$_currentPage';
 
     if (isRefresh) {
-      _pageCache.remove(cacheKey); // Xóa cache trang hiện tại nếu đang kéo để refresh
+      _pageCache.remove(cacheKey);
     }
 
-    // ⚡️ Tối ưu tốc độ: Trả về kết quả từ Cache ngay lập tức nếu có
+    // Trả về kết quả từ Cache ngay lập tức nếu có
     if (_pageCache.containsKey(cacheKey)) {
       _mangaList = _pageCache[cacheKey]!;
       _isLoading = false;
@@ -103,30 +107,42 @@ class OnlineMangaProvider with ChangeNotifier {
     }
 
     try {
-      final result = await MangaApiService.getMangas(
-        type: _selectedType,
-        page: _currentPage,
-      );
+      // Ánh xạ trang hiển thị sang trang API: Trang 1 = API(1,2), Trang 2 = API(3,4), ...
+      final apiPage1 = (_currentPage - 1) * 2 + 1;
+      final apiPage2 = apiPage1 + 1;
 
-      _mangaList = result['manga'] as List<OnlineManga>;
-      _pageCache[cacheKey] = _mangaList; // Lưu vào cache
+      // Gọi song song 2 trang API cùng lúc để tăng tốc
+      final results = await Future.wait([
+        MangaApiService.getMangas(type: _selectedType, page: apiPage1),
+        MangaApiService.getMangas(type: _selectedType, page: apiPage2),
+      ]);
 
-      // Kiểm tra còn trang tiếp theo không
-      final pagination = result['pagination'] as Map<String, dynamic>;
+      // Gộp 2 danh sách lại
+      final list1 = results[0]['manga'] as List<OnlineManga>;
+      final list2 = results[1]['manga'] as List<OnlineManga>;
+      final combined = [...list1, ...list2];
+
+      // Cắt xuống tối đa 42 truyện
+      _mangaList = combined.length > _displayPageSize
+          ? combined.sublist(0, _displayPageSize)
+          : combined;
+      _pageCache[cacheKey] = _mangaList;
+
+      // Tính toán phân trang dựa trên kết quả trang API đầu tiên
+      final pagination = results[0]['pagination'] as Map<String, dynamic>;
       final totalItems = pagination['totalItems'] as int? ?? 0;
-      final itemsPerPage = pagination['itemsPerPage'] as int? ?? 24;
-      
+
       if (totalItems > 0) {
-        _hasMorePages = (_currentPage * itemsPerPage) < totalItems;
+        // Tổng số trang hiển thị = tổng trang API chia 2
+        _hasMorePages = (apiPage2 * 24) < totalItems;
       } else {
-        _hasMorePages = _mangaList.length >= itemsPerPage;
+        _hasMorePages = list2.isNotEmpty;
       }
 
-      // ⚡️ Tính năng Prefetch (Tải trước): Tải ngầm trang tiếp theo để bấm là có ngay
+      // Tải trước trang tiếp theo ở dưới nền
       if (_hasMorePages) {
         _prefetchPage(_currentPage + 1);
       }
-      
     } catch (e) {
       if (!_pageCache.containsKey(cacheKey)) {
         _errorMessage = 'Không thể tải danh sách truyện. Kiểm tra kết nối mạng.';
@@ -144,14 +160,25 @@ class OnlineMangaProvider with ChangeNotifier {
     if (_pageCache.containsKey(cacheKey)) return;
 
     try {
-      final result = await MangaApiService.getMangas(
-        type: _selectedType,
-        page: page,
-      );
-      final prefetchList = result['manga'] as List<OnlineManga>;
+      final apiPage1 = (page - 1) * 2 + 1;
+      final apiPage2 = apiPage1 + 1;
+
+      final results = await Future.wait([
+        MangaApiService.getMangas(type: _selectedType, page: apiPage1),
+        MangaApiService.getMangas(type: _selectedType, page: apiPage2),
+      ]);
+
+      final list1 = results[0]['manga'] as List<OnlineManga>;
+      final list2 = results[1]['manga'] as List<OnlineManga>;
+      final combined = [...list1, ...list2];
+
+      final prefetchList = combined.length > _displayPageSize
+          ? combined.sublist(0, _displayPageSize)
+          : combined;
+
       if (prefetchList.isNotEmpty) {
         _pageCache[cacheKey] = prefetchList;
-        debugPrint('⚡️ Đã tải trước trang $page cho filter $_selectedType');
+        debugPrint('⚡️ Đã tải trước trang $page (${prefetchList.length} truyện)');
       }
     } catch (e) {
       // Bỏ qua lỗi prefetch vì chạy ngầm
