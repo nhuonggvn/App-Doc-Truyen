@@ -1,12 +1,13 @@
 // lib/views/online_screen.dart
-// Màn hình hiển thị truyện online từ API server
+// Màn hình hiển thị truyện online từ API server, tối ưu hiệu năng cuộn và tải ảnh
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../models/online_manga.dart';
 import '../viewmodels/online_manga_provider.dart';
 import 'online_manga_detail_screen.dart';
+import 'widgets/online_manga_card.dart';
 
 /// Trang hiển thị danh sách truyện lấy từ API online
 class OnlineScreen extends StatefulWidget {
@@ -23,6 +24,8 @@ class _OnlineScreenState extends State<OnlineScreen> {
   final ScrollController _scrollController = ScrollController();
   // Trạng thái thanh tìm kiếm có đang mở không
   bool _isSearchMode = false;
+  // Timer debounce để tránh gọi API quá nhiều khi gõ phím
+  Timer? _debounceTimer;
 
   // Danh sách các bộ lọc loại truyện
   final List<Map<String, String>> _typeFilters = const [
@@ -52,16 +55,33 @@ class _OnlineScreenState extends State<OnlineScreen> {
     _searchController.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
-  /// Xử lý sự kiện cuộn - tải thêm khi gần cuối danh sách
+  /// Xử lý sự kiện cuộn - tải thêm khi gần cuối danh sách.
+  /// Tăng threshold lên 500 pixel để bắt đầu tải trước khi đến cuối,
+  /// tạo cảm giác mượt hơn cho người dùng.
   void _onScroll() {
     if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
+        _scrollController.position.maxScrollExtent - 500) {
       // Gần cuối danh sách, tải thêm truyện
       Provider.of<OnlineMangaProvider>(context, listen: false).loadMore();
     }
+  }
+
+  /// Xử lý tìm kiếm có debounce 300ms.
+  /// Đợi người dùng ngừng gõ 300ms rồi mới gọi API,
+  /// tránh gọi liên tục mỗi ký tự.
+  void _onSearchChanged(String value) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(
+      const Duration(milliseconds: 300), // chỉnh thời gian debounce tìm kiếm
+      () {
+        Provider.of<OnlineMangaProvider>(context, listen: false)
+            .searchManga(value);
+      },
+    );
   }
 
   @override
@@ -78,10 +98,7 @@ class _OnlineScreenState extends State<OnlineScreen> {
                   hintText: 'Tìm kiếm truyện online...',
                   border: InputBorder.none,
                 ),
-                onChanged: (value) {
-                  // Tìm kiếm khi người dùng nhập
-                  provider.searchManga(value);
-                },
+                onChanged: _onSearchChanged,
               )
             : const Text('Truyện Online'),
         actions: [
@@ -91,13 +108,14 @@ class _OnlineScreenState extends State<OnlineScreen> {
             height: 35,
             child: IconButton(
               padding: EdgeInsets.zero,
-              iconSize: 25,
+              iconSize: 25, // chỉnh kích thước icon tìm kiếm
               icon: Icon(_isSearchMode ? Icons.close : Icons.search),
               onPressed: () {
                 setState(() {
                   _isSearchMode = !_isSearchMode;
                   if (!_isSearchMode) {
                     _searchController.clear();
+                    _debounceTimer?.cancel();
                     provider.clearSearch();
                   }
                 });
@@ -125,19 +143,18 @@ class _OnlineScreenState extends State<OnlineScreen> {
 
   /// Xây dựng thanh bộ lọc loại truyện (horizontal scroll)
   Widget _buildTypeFilterBar(OnlineMangaProvider provider) {
-    return Container(
-      height: 50,
-      padding: const EdgeInsets.symmetric(vertical: 6),
+    return SizedBox(
+      height: 50, // chỉnh chiều cao thanh bộ lọc
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), // chỉnh padding thanh lọc
         itemCount: _typeFilters.length,
         itemBuilder: (context, index) {
           final filter = _typeFilters[index];
           final isSelected = provider.selectedType == filter['value'];
 
           return Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.only(right: 8), // chỉnh khoảng cách giữa các chip
             child: FilterChip(
               label: Text(filter['label']!),
               selected: isSelected,
@@ -154,13 +171,14 @@ class _OnlineScreenState extends State<OnlineScreen> {
     );
   }
 
-  /// Xây dựng lưới truyện (GridView)
+  /// Xây dựng lưới truyện (GridView) với các tối ưu hiệu năng
   Widget _buildMangaGrid(OnlineMangaProvider provider) {
     // Trạng thái đang tải lần đầu
     if (provider.isLoading) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 16),
@@ -174,13 +192,14 @@ class _OnlineScreenState extends State<OnlineScreen> {
     if (provider.errorMessage != null && provider.mangaList.isEmpty) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.all(32), // chỉnh khoảng cách nội dung lỗi
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 Icons.cloud_off,
-                size: 64,
+                size: 64, // chỉnh kích thước icon lỗi
                 color: Theme.of(context).colorScheme.error,
               ),
               const SizedBox(height: 16),
@@ -206,10 +225,11 @@ class _OnlineScreenState extends State<OnlineScreen> {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.library_books_outlined,
-              size: 64,
+              size: 64, // chỉnh kích thước icon danh sách trống
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
@@ -227,12 +247,16 @@ class _OnlineScreenState extends State<OnlineScreen> {
       onRefresh: () => provider.loadMangas(),
       child: GridView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(12), // chỉnh padding lưới truyện
+        // Tắt auto keep alive để giải phóng bộ nhớ cho item ngoài màn hình
+        addAutomaticKeepAlives: false,
+        // Bật repaint boundaries để tối ưu vẽ lại từng item
+        addRepaintBoundaries: true,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.65,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
+          crossAxisCount: 2, // chỉnh số cột lưới
+          childAspectRatio: 0.65, // chỉnh tỷ lệ card
+          crossAxisSpacing: 10, // chỉnh khoảng cách ngang giữa card
+          mainAxisSpacing: 10, // chỉnh khoảng cách dọc giữa card
         ),
         // +1 cho indicator tải thêm ở cuối
         itemCount: provider.mangaList.length + (provider.hasMorePages ? 1 : 0),
@@ -243,7 +267,11 @@ class _OnlineScreenState extends State<OnlineScreen> {
           }
 
           final manga = provider.mangaList[index];
-          return _buildMangaCard(manga);
+          return OnlineMangaCard(
+            key: ValueKey(manga.slug),
+            manga: manga,
+            onTap: () => _openMangaDetail(manga),
+          );
         },
       ),
     );
@@ -261,10 +289,11 @@ class _OnlineScreenState extends State<OnlineScreen> {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.search_off,
-              size: 64,
+              size: 64, // chỉnh kích thước icon không tìm thấy
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
@@ -286,212 +315,19 @@ class _OnlineScreenState extends State<OnlineScreen> {
 
     // Hiển thị kết quả tìm kiếm dạng danh sách
     return ListView.builder(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(12), // chỉnh padding danh sách
+      // Tắt auto keep alive để giải phóng bộ nhớ
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
       itemCount: provider.searchResults.length,
       itemBuilder: (context, index) {
         final manga = provider.searchResults[index];
-        return _buildSearchResultItem(manga);
+        return OnlineSearchResultItem(
+          key: ValueKey(manga.slug),
+          manga: manga,
+          onTap: () => _openMangaDetail(manga),
+        );
       },
-    );
-  }
-
-  /// Card hiển thị một truyện trong lưới
-  Widget _buildMangaCard(OnlineManga manga) {
-    return InkWell(
-      onTap: () => _openMangaDetail(manga),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Box ảnh bìa - Ôm trọn hình ảnh
-          Expanded(
-            child: Card(
-              clipBehavior: Clip.antiAlias,
-              margin: EdgeInsets.zero,
-              elevation: 3,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Ảnh từ URL
-                  _buildNetworkImage(manga.image),
-
-                  // Badge trạng thái
-                  if (manga.status != null)
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(manga.status!),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          manga.status!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  // Gradient overlay nhẹ ở dưới để tên truyện (nếu nằm trên ảnh) dễ đọc
-                  // Nhưng hiện tại tên truyện nằm ngoài nên bỏ gradient busy này
-                ],
-              ),
-            ),
-          ),
-
-          // Tên truyện và số chương - Dời ra ngoài box
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 10, 4, 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  manga.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.menu_book,
-                      size: 12,
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${manga.chapters} chương',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Item hiển thị một truyện trong kết quả tìm kiếm
-  Widget _buildSearchResultItem(OnlineManga manga) {
-    return InkWell(
-      onTap: () => _openMangaDetail(manga),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Ảnh bìa
-            SizedBox(
-              width: 90,
-              height: 120,
-              child: Card(
-                clipBehavior: Clip.antiAlias,
-                margin: EdgeInsets.zero,
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: _buildNetworkImage(manga.image),
-              ),
-            ),
-
-            // Thông tin truyện - Nằm ngoài box
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      manga.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Số chương
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.menu_book,
-                          size: 14,
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${manga.chapters} chương',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.outline,
-                              ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    if (manga.status != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(
-                            manga.status!,
-                          ).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: _getStatusColor(manga.status!),
-                            width: 1,
-                          ),
-                        ),
-                        child: Text(
-                          manga.status!,
-                          style: TextStyle(
-                            color: _getStatusColor(manga.status!),
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Icon điều hướng
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Icon(
-                Icons.chevron_right,
-                size: 20,
-                color: Theme.of(context).colorScheme.outline,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -500,62 +336,12 @@ class _OnlineScreenState extends State<OnlineScreen> {
     if (provider.isLoadingMore) {
       return const Center(
         child: Padding(
-          padding: EdgeInsets.all(16),
+          padding: EdgeInsets.all(16), // chỉnh khoảng cách indicator
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
       );
     }
     return const SizedBox.shrink();
-  }
-
-  /// Hiển thị ảnh từ URL với cache và placeholder
-  Widget _buildNetworkImage(String? imageUrl) {
-    if (imageUrl == null || imageUrl.isEmpty) {
-      return _buildImagePlaceholder();
-    }
-
-    return CachedNetworkImage(
-      imageUrl: imageUrl,
-      fit: BoxFit.cover,
-      placeholder: (context, url) => Container(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      ),
-      errorWidget: (context, url, error) => _buildImagePlaceholder(),
-    );
-  }
-
-  /// Placeholder khi không có ảnh hoặc ảnh lỗi
-  Widget _buildImagePlaceholder() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
-            Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.6),
-          ],
-        ),
-      ),
-      child: Center(
-        child: Icon(
-          Icons.menu_book,
-          size: 40,
-          color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.7),
-        ),
-      ),
-    );
-  }
-
-  /// Lấy màu tương ứng với trạng thái truyện
-  Color _getStatusColor(String status) {
-    if (status.contains('Hoàn thành') || status.contains('COMPLETED')) {
-      return Colors.green;
-    } else if (status.contains('Đang') || status.contains('ONGOING')) {
-      return const Color.fromARGB(255, 0, 140, 255);
-    }
-    return Colors.orange;
   }
 
   /// Mở trang chi tiết truyện
