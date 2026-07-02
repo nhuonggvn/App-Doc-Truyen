@@ -35,6 +35,7 @@ class OnlineMangaProvider with ChangeNotifier {
 
   // Thông tin phân trang
   int _currentPage = 1;
+  int _totalPages = 1;
   bool _hasMorePages = true;
 
   // Bộ lọc hiện tại
@@ -54,16 +55,17 @@ class OnlineMangaProvider with ChangeNotifier {
   List<OnlineManga> get favorites => _favorites;
   List<Map<String, dynamic>> get readingProgress => _readingProgress;
 
+  int get currentPage => _currentPage;
+  int get totalPages => _totalPages;
+  bool get hasMorePages => _hasMorePages;
+  String get selectedType => _selectedType;
+  String? get errorMessage => _errorMessage;
+
   bool get isLoading => _isLoading;
   bool get isLoadingMore => _isLoadingMore;
   bool get isLoadingDetail => _isLoadingDetail;
   bool get isLoadingChapter => _isLoadingChapter;
   bool get isSearching => _isSearching;
-
-  int get currentPage => _currentPage;
-  bool get hasMorePages => _hasMorePages;
-  String get selectedType => _selectedType;
-  String? get errorMessage => _errorMessage;
 
   // Cache danh sách truyện (key: "type-page", value: danh sách truyện)
   final Map<String, List<OnlineManga>> _pageCache = {};
@@ -133,10 +135,13 @@ class OnlineMangaProvider with ChangeNotifier {
       final totalItems = pagination['totalItems'] as int? ?? 0;
 
       if (totalItems > 0) {
-        // Tổng số trang hiển thị = tổng trang API chia 2
-        _hasMorePages = (apiPage2 * 24) < totalItems;
+        // Mỗi trang UI của chúng ta chứa 42 truyện, vậy tổng số trang UI là:
+        _totalPages = (totalItems / _displayPageSize).ceil();
+        // Cập nhật lại logic hasMorePages
+        _hasMorePages = _currentPage < _totalPages;
       } else {
         _hasMorePages = list2.isNotEmpty;
+        _totalPages = _currentPage + (_hasMorePages ? 1 : 0);
       }
 
       // Tải trước trang tiếp theo ở dưới nền

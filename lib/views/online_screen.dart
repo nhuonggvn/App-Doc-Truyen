@@ -244,27 +244,7 @@ class _OnlineScreenState extends State<OnlineScreen> {
       );
     }
 
-    // Danh sách trống
-    if (provider.mangaList.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.library_books_outlined,
-              size: 64, // chỉnh kích thước icon danh sách trống
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Không có truyện nào',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ],
-        ),
-      );
-    }
+    // Xoá early return cho list.isEmpty để giữ lại cấu trúc cuộn và thanh phân trang
 
     // Hiển thị lưới truyện với RefreshIndicator và CustomScrollView để đưa phân trang vào cuối danh sách cuộn
     return RefreshIndicator(
@@ -276,35 +256,57 @@ class _OnlineScreenState extends State<OnlineScreen> {
         slivers: [
           SliverPadding(
             padding: EdgeInsets.only(
-              top: _isSearchMode ? 12 : 84, // Chừa 84px cho thanh Dock nổi lơ lửng
+              top: _isSearchMode ? 12 : 48, // Chừa vừa đủ 48px 
               left: 12,
               right: 12,
               bottom: 12,
             ),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2, // chỉnh số cột lưới
-                childAspectRatio: 0.65, // chỉnh tỷ lệ card
-                crossAxisSpacing: 10, // chỉnh khoảng cách ngang giữa card
-                mainAxisSpacing: 10, // chỉnh khoảng cách dọc giữa card
-              ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final manga = provider.mangaList[index];
-                  return OnlineMangaCard(
-                    key: ValueKey(manga.slug),
-                    manga: manga,
-                    onTap: () => _openMangaDetail(manga),
-                  );
-                },
-                childCount: provider.mangaList.length,
-                addAutomaticKeepAlives: false,
-                addRepaintBoundaries: true,
-              ),
-            ),
+            sliver: provider.mangaList.isEmpty
+                ? SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.library_books_outlined,
+                            size: 64, // chỉnh kích thước icon danh sách trống
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Không có truyện nào',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2, // chỉnh số cột lưới
+                      childAspectRatio: 0.65, // chỉnh tỷ lệ card
+                      crossAxisSpacing: 10, // chỉnh khoảng cách ngang giữa card
+                      mainAxisSpacing: 10, // chỉnh khoảng cách dọc giữa card
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final manga = provider.mangaList[index];
+                        return OnlineMangaCard(
+                          key: ValueKey(manga.slug),
+                          manga: manga,
+                          onTap: () => _openMangaDetail(manga),
+                        );
+                      },
+                      childCount: provider.mangaList.length,
+                      addAutomaticKeepAlives: false,
+                      addRepaintBoundaries: true,
+                    ),
+                  ),
           ),
-          // Thanh phân trang cuộn theo danh sách ở cuối cùng
-          if (!_isSearchMode && !provider.isLoading && provider.mangaList.isNotEmpty)
+          // Thanh phân trang cuộn theo danh sách ở cuối cùng (vẫn hiển thị kể cả khi danh sách trống để có thể chuyển trang về)
+          if (!provider.isLoading && provider.totalPages > 1)
             SliverToBoxAdapter(
               child: _buildPaginationBar(provider),
             ),
@@ -368,67 +370,114 @@ class _OnlineScreenState extends State<OnlineScreen> {
     );
   }
 
-  /// Xây dựng thanh điều hướng phân trang (Pagination)
+  /// Xây dựng thanh điều hướng phân trang (Pagination) kiểu hiển thị số (1 2 [3] 4 5)
   Widget _buildPaginationBar(OnlineMangaProvider provider) {
+    final int currentPage = provider.currentPage;
+    final int totalPages = provider.totalPages;
+
+    // Tính toán các trang hiển thị (tối đa 5 trang số + 2 nút nhảy)
+    // Để trang hiện tại luôn ở chính giữa (vị trí #4 của tổng 7 nút), ta lùi startPage lại 2 đơn vị
+    int startPage = (currentPage - 2).clamp(1, totalPages);
+    int endPage = startPage + 4; // Tổng cộng 5 trang
+
+    // Nếu endPage vượt quá tổng số trang, lùi startPage lại để vẫn đủ 5 nút (nếu có thể)
+    if (endPage > totalPages) {
+      endPage = totalPages;
+      startPage = (endPage - 4).clamp(1, totalPages);
+    }
+
+    final List<int> displayPages = [];
+    for (int i = startPage; i <= endPage; i++) {
+      displayPages.add(i);
+    }
+
+    // Hàm helper vẽ các nút tròn
+    Widget buildPageButton({
+      required String label,
+      required bool isActive,
+      required VoidCallback? onTap,
+      IconData? icon,
+    }) {
+      return GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 38, // Kích thước gọn gàng để vừa 8 nút trên màn hình nhỏ
+          height: 38,
+          margin: const EdgeInsets.symmetric(horizontal: 3), // Chỉnh khoảng cách giữa các số
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isActive
+                ? Theme.of(context).colorScheme.primary // Màu nổi bật cho trang hiện tại
+                : (onTap == null 
+                    ? Colors.transparent // Nút vô hiệu hóa
+                    : Theme.of(context).colorScheme.surfaceContainerHighest), // Màu nền mặc định
+            border: onTap == null && !isActive
+                ? Border.all(color: Theme.of(context).colorScheme.outlineVariant) // Viền nhạt cho nút disable
+                : null,
+          ),
+          alignment: Alignment.center,
+          child: icon != null
+              ? Icon(
+                  icon,
+                  size: 20,
+                  color: isActive
+                      ? Theme.of(context).colorScheme.onPrimary
+                      : (onTap == null 
+                          ? Theme.of(context).colorScheme.outline 
+                          : Theme.of(context).colorScheme.onSurface),
+                )
+              : Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                    color: isActive
+                        ? Theme.of(context).colorScheme.onPrimary
+                        : Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+        ),
+      );
+    }
+
+    // Hàm chuyển trang mượt mà
+    void changePage(int page) {
+      provider.loadMangas(page: page);
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOutCubic,
+      );
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      decoration: const BoxDecoration(
-        color: Colors.transparent,
-      ),
+      padding: const EdgeInsets.only(top: 10, bottom: 70), // Thêm bottom padding để cuộn vượt lên thanh Dock
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Nút Prev (Dạng icon gọn nhẹ)
-          IconButton.filledTonal(
-            onPressed: provider.currentPage > 1
-                ? () {
-                    provider.loadMangas(page: provider.currentPage - 1);
-                    _scrollController.animateTo(
-                      0,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
-                    );
-                  }
-                : null,
-            icon: const Icon(Icons.chevron_left, size: 24),
-            tooltip: 'Trang trước',
+          // Nút << (Về trang 1)
+          buildPageButton(
+            label: '<<',
+            icon: Icons.keyboard_double_arrow_left,
+            isActive: false,
+            onTap: currentPage > 1 ? () => changePage(1) : null,
           ),
-          
-          const SizedBox(width: 24),
-          
-          // Số trang hiện tại (Thiết kế dạng viên thuốc)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(24), // Bo tròn như viên thuốc
-            ),
-            child: Text(
-              'Trang ${provider.currentPage}',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
-              ),
-            ),
-          ),
-          
-          const SizedBox(width: 24),
-          
-          // Nút Next (Dạng icon gọn nhẹ)
-          IconButton.filled(
-            onPressed: provider.hasMorePages
-                ? () {
-                    provider.loadMangas(page: provider.currentPage + 1);
-                    _scrollController.animateTo(
-                      0,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
-                    );
-                  }
-                : null,
-            icon: const Icon(Icons.chevron_right, size: 24),
-            tooltip: 'Trang sau',
+
+          // Các nút số trang
+          ...displayPages.map((page) => buildPageButton(
+                label: page.toString(),
+                isActive: page == currentPage,
+                onTap: page != currentPage ? () => changePage(page) : null,
+              )),
+
+          // Nút >> (Đến trang cuối)
+          buildPageButton(
+            label: '>>',
+            icon: Icons.keyboard_double_arrow_right,
+            isActive: false,
+            onTap: currentPage < totalPages ? () => changePage(totalPages) : null,
           ),
         ],
       ),
