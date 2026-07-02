@@ -115,48 +115,82 @@ class _OnlineScreenState extends State<OnlineScreen> {
         ],
       ),
 
-      body: Column(
+      body: Stack(
         children: [
-          // Thanh bộ lọc loại truyện (chỉ hiện khi không tìm kiếm)
-          if (!_isSearchMode) _buildTypeFilterBar(provider),
-
-          // Nội dung chính
-          Expanded(
+          // Nội dung chính nằm dưới
+          Positioned.fill(
             child: _isSearchMode && _searchController.text.isNotEmpty
                 ? _buildSearchResults(provider)
                 : _buildMangaGrid(provider),
           ),
+          
+          // Thanh bộ lọc nổi lơ lửng trên cùng (Floating)
+          if (!_isSearchMode)
+            Positioned(
+              top: -8,
+              left: 0,
+              right: 0,
+              child: _buildTypeFilterBar(provider),
+            ),
         ],
       ),
     );
   }
 
-  /// Xây dựng thanh bộ lọc loại truyện (horizontal scroll)
+  /// Xây dựng thanh bộ lọc loại truyện (dạng Floating Dock viên thuốc)
   Widget _buildTypeFilterBar(OnlineMangaProvider provider) {
-    return SizedBox(
-      height: 50, // chỉnh chiều cao thanh bộ lọc
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), // chỉnh padding thanh lọc
-        itemCount: _typeFilters.length,
-        itemBuilder: (context, index) {
-          final filter = _typeFilters[index];
-          final isSelected = provider.selectedType == filter['value'];
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      height: 38,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      // Bọc bằng ClipRRect để khi cuộn không bị tràn ra ngoài viền bo tròn
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.all(4),
+          child: Row(
+            children: List.generate(_typeFilters.length, (index) {
+              final filter = _typeFilters[index];
+              final isSelected = provider.selectedType == filter['value'];
 
-          return Padding(
-            padding: const EdgeInsets.only(right: 8), // chỉnh khoảng cách giữa các chip
-            child: FilterChip(
-              label: Text(filter['label']!),
-              selected: isSelected,
-              onSelected: (_) {
-                // Chuyển bộ lọc
-                provider.changeType(filter['value']!);
-              },
-              selectedColor: Theme.of(context).colorScheme.primaryContainer,
-              checkmarkColor: Theme.of(context).colorScheme.primary,
-            ),
-          );
-        },
+              return GestureDetector(
+                onTap: () => provider.changeType(filter['value']!),
+                behavior: HitTestBehavior.opaque,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.primaryContainer
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    filter['label']!,
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
       ),
     );
   }
@@ -234,13 +268,19 @@ class _OnlineScreenState extends State<OnlineScreen> {
 
     // Hiển thị lưới truyện với RefreshIndicator và CustomScrollView để đưa phân trang vào cuối danh sách cuộn
     return RefreshIndicator(
+      edgeOffset: _isSearchMode ? 0 : 72, // Đẩy con quay loading (pull-to-refresh) xuống dưới thanh Dock
       onRefresh: () => provider.loadMangas(isRefresh: true),
       child: CustomScrollView(
         controller: _scrollController,
         cacheExtent: 9999, // Load trước toàn bộ item của trang hiện tại để mượt hơn
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.only(
+              top: _isSearchMode ? 12 : 84, // Chừa 84px cho thanh Dock nổi lơ lửng
+              left: 12,
+              right: 12,
+              bottom: 12,
+            ),
             sliver: SliverGrid(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2, // chỉnh số cột lưới

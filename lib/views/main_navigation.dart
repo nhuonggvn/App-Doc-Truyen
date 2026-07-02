@@ -54,9 +54,37 @@ class _MainNavigationState extends State<MainNavigation> {
 
     return Scaffold(
       extendBody: true, // Quan trọng: Cho phép danh sách cuộn trượt xuống dưới nền của thanh Dock
-      body: IndexedStack(
-        index: _currentIndex,
-        children: navItems.map((item) => item.screen).toList(),
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: _currentIndex,
+            children: navItems.map((item) => item.screen).toList(),
+          ),
+          // Hiệu ứng mờ dần (Gradient fade) ở đáy màn hình
+          // Thanh Dock: bottom margin = 8, height = 56 => nửa thanh = 36px từ đáy
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 45, // Nằm gọn dưới thanh Dock
+            child: IgnorePointer( // Không chặn thao tác cuộn của người dùng
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0), // Trong suốt ở trên
+                      Theme.of(context).scaffoldBackgroundColor.withOpacity(0.7), // Mờ dần tại nửa thanh bar
+                      Theme.of(context).scaffoldBackgroundColor.withOpacity(0.95), // Gần đặc ở đáy
+                    ],
+                    stops: const [0.0, 0.6, 1.0], // 0.6 * 90 = 54px từ trên = 36px từ đáy (nửa thanh bar)
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: SafeArea(
         child: Container(
