@@ -77,6 +77,9 @@ class _OnlineScreenState extends State<OnlineScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        scrolledUnderElevation: 0, // Vô hiệu hóa đổi màu khi lướt lên
+        surfaceTintColor: Colors.transparent,
         title: _isSearchMode
             ? TextField(
                 controller: _searchController,

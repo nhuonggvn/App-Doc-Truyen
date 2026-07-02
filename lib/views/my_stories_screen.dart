@@ -90,7 +90,7 @@ class _MyStoriesScreenState extends State<MyStoriesScreen> {
                 ),
               ),
             if (stories.isNotEmpty) const SizedBox(width: 8),
-            const Text('Quản lý truyện'),
+            const Text('Editor'),
           ],
         ),
         actions: [
