@@ -45,30 +45,17 @@ class _OnlineScreenState extends State<OnlineScreen> {
         provider.loadMangas();
       }
     });
-
-    // Lắng nghe sự kiện cuộn để tải thêm truyện
-    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _debounceTimer?.cancel();
     super.dispose();
   }
 
-  /// Xử lý sự kiện cuộn - tải thêm khi gần cuối danh sách.
-  /// Tăng threshold lên 500 pixel để bắt đầu tải trước khi đến cuối,
-  /// tạo cảm giác mượt hơn cho người dùng.
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 500) {
-      // Gần cuối danh sách, tải thêm truyện
-      Provider.of<OnlineMangaProvider>(context, listen: false).loadMore();
-    }
-  }
+  // Đã xóa _onScroll vì đổi sang phân trang tĩnh
 
   /// Xử lý tìm kiếm có debounce 300ms.
   /// Đợi người dùng ngừng gõ 300ms rồi mới gọi API,
@@ -136,6 +123,10 @@ class _OnlineScreenState extends State<OnlineScreen> {
                 ? _buildSearchResults(provider)
                 : _buildMangaGrid(provider),
           ),
+
+          // Thanh phân trang (chỉ hiện khi không tìm kiếm và có dữ liệu)
+          if (!_isSearchMode && !provider.isLoading && provider.mangaList.isNotEmpty)
+            _buildPaginationBar(provider),
         ],
       ),
     );
@@ -244,9 +235,10 @@ class _OnlineScreenState extends State<OnlineScreen> {
 
     // Hiển thị lưới truyện với RefreshIndicator để kéo xuống làm mới
     return RefreshIndicator(
-      onRefresh: () => provider.loadMangas(),
+      onRefresh: () => provider.loadMangas(isRefresh: true),
       child: GridView.builder(
         controller: _scrollController,
+        cacheExtent: 9999, // Load trước toàn bộ item của trang hiện tại để mượt hơn
         padding: const EdgeInsets.all(12), // chỉnh padding lưới truyện
         // Tắt auto keep alive để giải phóng bộ nhớ cho item ngoài màn hình
         addAutomaticKeepAlives: false,
@@ -258,14 +250,8 @@ class _OnlineScreenState extends State<OnlineScreen> {
           crossAxisSpacing: 10, // chỉnh khoảng cách ngang giữa card
           mainAxisSpacing: 10, // chỉnh khoảng cách dọc giữa card
         ),
-        // +1 cho indicator tải thêm ở cuối
-        itemCount: provider.mangaList.length + (provider.hasMorePages ? 1 : 0),
+        itemCount: provider.mangaList.length,
         itemBuilder: (context, index) {
-          // Item cuối cùng là indicator tải thêm
-          if (index == provider.mangaList.length) {
-            return _buildLoadMoreIndicator(provider);
-          }
-
           final manga = provider.mangaList[index];
           return OnlineMangaCard(
             key: ValueKey(manga.slug),
@@ -316,6 +302,7 @@ class _OnlineScreenState extends State<OnlineScreen> {
     // Hiển thị kết quả tìm kiếm dạng danh sách
     return ListView.builder(
       padding: const EdgeInsets.all(12), // chỉnh padding danh sách
+      cacheExtent: 9999, // Load trước ảnh để lướt mượt
       // Tắt auto keep alive để giải phóng bộ nhớ
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
@@ -331,17 +318,80 @@ class _OnlineScreenState extends State<OnlineScreen> {
     );
   }
 
-  /// Indicator hiển thị khi đang tải thêm truyện
-  Widget _buildLoadMoreIndicator(OnlineMangaProvider provider) {
-    if (provider.isLoadingMore) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16), // chỉnh khoảng cách indicator
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      );
-    }
-    return const SizedBox.shrink();
+  /// Xây dựng thanh điều hướng phân trang (Pagination)
+  Widget _buildPaginationBar(OnlineMangaProvider provider) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Nút Prev
+          FilledButton.tonalIcon(
+            onPressed: provider.currentPage > 1
+                ? () {
+                    provider.loadMangas(page: provider.currentPage - 1);
+                    // Cuộn lên đầu
+                    _scrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                : null,
+            icon: const Icon(Icons.chevron_left, size: 20),
+            label: const Text('Trang trước'),
+          ),
+          
+          const Spacer(),
+          
+          // Số trang hiện tại
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'Trang ${provider.currentPage}',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
+            ),
+          ),
+          
+          const Spacer(),
+          
+          // Nút Next
+          FilledButton.icon(
+            onPressed: provider.hasMorePages
+                ? () {
+                    provider.loadMangas(page: provider.currentPage + 1);
+                    // Cuộn lên đầu
+                    _scrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                : null,
+            icon: const Icon(Icons.chevron_right, size: 20),
+            label: const Text('Trang sau'),
+            iconAlignment: IconAlignment.end,
+          ),
+        ],
+      ),
+    );
   }
 
   /// Mở trang chi tiết truyện

@@ -65,36 +65,72 @@ class OnlineMangaProvider with ChangeNotifier {
   String get selectedType => _selectedType;
   String? get errorMessage => _errorMessage;
 
+  // Cache danh sách truyện (key: "type-page", value: danh sách truyện)
+  final Map<String, List<OnlineManga>> _pageCache = {};
+
   // ==================== DANH SÁCH TRUYỆN ====================
 
-  /// Tải danh sách truyện từ API (trang đầu tiên)
-  Future<void> loadMangas({String? type}) async {
-    // Cập nhật bộ lọc nếu có
-    if (type != null) {
+  /// Tải danh sách truyện từ API theo trang
+  Future<void> loadMangas({String? type, int? page, bool isRefresh = false}) async {
+    // Cập nhật bộ lọc và reset trang nếu đổi loại
+    if (type != null && _selectedType != type) {
       _selectedType = type;
+      _currentPage = 1;
+      _pageCache.clear();
+    } else if (page != null) {
+      _currentPage = page;
+    } else if (type != null && _selectedType == type) {
+      // Đang bấm lại cùng một filter, refresh về trang 1
+      _currentPage = 1;
+      _pageCache.clear();
     }
 
-    _isLoading = true;
-    _errorMessage = null;
-    _currentPage = 1;
-    _hasMorePages = true;
-    notifyListeners();
+    final cacheKey = '$_selectedType-$_currentPage';
+
+    if (isRefresh) {
+      _pageCache.remove(cacheKey); // Xóa cache trang hiện tại nếu đang kéo để refresh
+    }
+
+    // ⚡️ Tối ưu tốc độ: Trả về kết quả từ Cache ngay lập tức nếu có
+    if (_pageCache.containsKey(cacheKey)) {
+      _mangaList = _pageCache[cacheKey]!;
+      _isLoading = false;
+      notifyListeners();
+    } else {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+    }
 
     try {
       final result = await MangaApiService.getMangas(
         type: _selectedType,
-        page: 1,
+        page: _currentPage,
       );
 
       _mangaList = result['manga'] as List<OnlineManga>;
+      _pageCache[cacheKey] = _mangaList; // Lưu vào cache
 
       // Kiểm tra còn trang tiếp theo không
       final pagination = result['pagination'] as Map<String, dynamic>;
       final totalItems = pagination['totalItems'] as int? ?? 0;
       final itemsPerPage = pagination['itemsPerPage'] as int? ?? 24;
-      _hasMorePages = _mangaList.length < totalItems && itemsPerPage > 0;
+      
+      if (totalItems > 0) {
+        _hasMorePages = (_currentPage * itemsPerPage) < totalItems;
+      } else {
+        _hasMorePages = _mangaList.length >= itemsPerPage;
+      }
+
+      // ⚡️ Tính năng Prefetch (Tải trước): Tải ngầm trang tiếp theo để bấm là có ngay
+      if (_hasMorePages) {
+        _prefetchPage(_currentPage + 1);
+      }
+      
     } catch (e) {
-      _errorMessage = 'Không thể tải danh sách truyện. Kiểm tra kết nối mạng.';
+      if (!_pageCache.containsKey(cacheKey)) {
+        _errorMessage = 'Không thể tải danh sách truyện. Kiểm tra kết nối mạng.';
+      }
       debugPrint('❌ Lỗi loadMangas: $e');
     }
 
@@ -102,39 +138,27 @@ class OnlineMangaProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Tải thêm truyện (trang tiếp theo - infinite scroll)
-  Future<void> loadMore() async {
-    // Không tải thêm nếu đang loading hoặc hết trang
-    if (_isLoadingMore || !_hasMorePages) return;
-
-    _isLoadingMore = true;
-    notifyListeners();
+  /// Tải trước dữ liệu trang để chuyển trang tức thì
+  Future<void> _prefetchPage(int page) async {
+    final cacheKey = '$_selectedType-$page';
+    if (_pageCache.containsKey(cacheKey)) return;
 
     try {
-      _currentPage++;
-
       final result = await MangaApiService.getMangas(
         type: _selectedType,
-        page: _currentPage,
+        page: page,
       );
-
-      final newMangas = result['manga'] as List<OnlineManga>;
-
-      if (newMangas.isEmpty) {
-        // Hết truyện, không tải thêm nữa
-        _hasMorePages = false;
-      } else {
-        _mangaList.addAll(newMangas);
+      final prefetchList = result['manga'] as List<OnlineManga>;
+      if (prefetchList.isNotEmpty) {
+        _pageCache[cacheKey] = prefetchList;
+        debugPrint('⚡️ Đã tải trước trang $page cho filter $_selectedType');
       }
     } catch (e) {
-      // Lỗi khi tải thêm, giảm trang về để thử lại sau
-      _currentPage--;
-      debugPrint('❌ Lỗi loadMore: $e');
+      // Bỏ qua lỗi prefetch vì chạy ngầm
     }
-
-    _isLoadingMore = false;
-    notifyListeners();
   }
+
+  // Đã xóa hàm loadMore vì chuyển sang phân trang tĩnh (Pagination) thay vì Infinite Scroll
 
   /// Thay đổi loại danh sách (filter)
   Future<void> changeType(String type) async {
