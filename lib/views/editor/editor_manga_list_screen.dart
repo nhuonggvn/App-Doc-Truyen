@@ -73,15 +73,18 @@ class _EditorMangaListScreenState extends State<EditorMangaListScreen> {
                     return _buildMangaCard(manga);
                   },
                 ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const MangaFormScreen()),
-          );
-          if (result == true) _fetchMangas();
-        },
-        child: const Icon(Icons.add_rounded),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 85), // Nâng lề dưới thêm 15px để tránh bị thanh bottom bar che
+        child: FloatingActionButton(
+          onPressed: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MangaFormScreen()),
+            );
+            if (result == true) _fetchMangas();
+          },
+          child: const Icon(Icons.add_rounded),
+        ),
       ),
     );
   }

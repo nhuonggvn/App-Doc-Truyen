@@ -116,17 +116,20 @@ class _MyStoriesScreenState extends State<MyStoriesScreen> {
                   ? _buildGridView(stories, storyProvider)
                   : _buildListView(stories, storyProvider),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const StoryFormScreen()),
-          );
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('Thêm truyện'),
-        backgroundColor: const Color.fromARGB(255, 0, 123, 255), // Màu nền
-        foregroundColor: Colors.white, // Màu icon và text
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 85), // Nâng lề dưới thêm 15px để nút nằm hoàn toàn phía trên thanh BottomNavigationBar
+        child: FloatingActionButton.extended(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const StoryFormScreen()),
+            );
+          },
+          icon: const Icon(Icons.add),
+          label: const Text('Thêm truyện'),
+          backgroundColor: const Color.fromARGB(255, 0, 123, 255), // Màu nền
+          foregroundColor: Colors.white, // Màu icon và text
+        ),
       ),
     );
   }

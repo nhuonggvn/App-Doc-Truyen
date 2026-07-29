@@ -453,7 +453,7 @@ class _OnlineScreenState extends State<OnlineScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.only(top: 10, bottom: 70), // Thêm bottom padding để cuộn vượt lên thanh Dock
+      padding: const EdgeInsets.only(top: 10, bottom: 100), // Thêm bottom padding để cuộn vượt lên thanh Dock
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
